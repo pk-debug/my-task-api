@@ -1,8 +1,6 @@
 package com.example.taskapi;
 
 import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,40 +15,54 @@ import org.springframework.web.bind.annotation.RestController;
  * and decides what to do with them.
  *
  * @RestController
- *   Tells Spring: "this class handles web requests, and every method's
- *   return value should be converted straight into JSON and sent back
- *   to whoever asked for it." Without this annotation, Spring would
- *   have no idea this class is meant to serve web traffic.
+ *                 Tells Spring: "this class handles web requests, and every
+ *                 method's
+ *                 return value should be converted straight into JSON and sent
+ *                 back
+ *                 to whoever asked for it." Without this annotation, Spring
+ *                 would
+ *                 have no idea this class is meant to serve web traffic.
  *
- * @RequestMapping("/tasks")
- *   Sets a shared URL prefix for every method in this class. Because of
- *   this, every endpoint below automatically starts with "/tasks":
- *     GET  /tasks   -> handled by getAllTasks()
- *     POST /tasks   -> handled by createTask()
+ *                 @RequestMapping("/tasks")
+ *                 Sets a shared URL prefix for every method in this class.
+ *                 Because of
+ *                 this, every endpoint below automatically starts with
+ *                 "/tasks":
+ *                 GET /tasks -> handled by getAllTasks()
+ *                 POST /tasks -> handled by createTask()
  *
- * How data flows through this class:
- *   Browser/curl  --HTTP request-->  TaskController
- *                                        |
- *                                        v
- *                                 TaskRepository
- *                                        |
- *                                        v
- *                                  SQLite database (tasks.db)
+ *                 How data flows through this class:
+ *                 Browser/curl --HTTP request--> TaskController
+ *                 |
+ *                 v
+ *                 TaskRepository
+ *                 |
+ *                 v
+ *                 SQLite database (tasks.db)
  */
 @RestController
 @RequestMapping("/tasks")
 public class TaskController {
 
     /**
-     * @Autowired
-     *   Tells Spring: "please create a working TaskRepository object
-     *   and hand it to me automatically." We never write
-     *   `new TaskRepository()` ourselves - Spring builds it behind the
-     *   scenes (using the magic described in TaskRepository.java) and
-     *   "injects" it here. This pattern is called Dependency Injection.
+     * "final" means this reference can never be reassigned after the
+     * constructor sets it once. Combined with constructor injection
+     * below, this guarantees taskRepository is never null and never
+     * swapped out accidentally later in the code.
      */
-    @Autowired
-    private TaskRepository taskRepository;
+    private final TaskRepository taskRepository;
+
+    /**
+     * Constructor injection.
+     * Spring automatically calls this constructor when creating a
+     * TaskController, and automatically supplies a working
+     * TaskRepository as the argument. No @Autowired annotation is
+     * needed here because there's only one constructor - Spring uses
+     * it by default.
+     */
+    public TaskController(TaskRepository taskRepository) {
+        this.taskRepository = taskRepository;
+    }
 
     /**
      * Handles: GET /tasks
@@ -58,7 +70,7 @@ public class TaskController {
      * Returns every task currently stored in the database.
      * Example: visiting http://localhost:8080/tasks in a browser
      * triggers this method and returns something like:
-     *   [{"id":1,"title":"Buy milk","done":false}]
+     * [{"id":1,"title":"Buy milk","done":false}]
      *
      * @return a list of every Task row in the database
      */
@@ -73,15 +85,15 @@ public class TaskController {
      * Creates and saves a brand new task.
      *
      * @RequestBody Task task
-     *   Tells Spring: "take the raw JSON text sent in the request body
-     *   (e.g. {"title":"Buy milk","done":false}) and automatically
-     *   convert it into a real Task object for me." This conversion is
-     *   done using the getters/setters defined in Task.java.
+     *              Tells Spring: "take the raw JSON text sent in the request body
+     *              (e.g. {"title":"Buy milk","done":false}) and automatically
+     *              convert it into a real Task object for me." This conversion is
+     *              done using the getters/setters defined in Task.java.
      *
-     * Example request (using curl):
-     *   curl -X POST http://localhost:8080/tasks \
-     *     -H "Content-Type: application/json" \
-     *     -d '{"title": "Buy milk", "done": false}'
+     *              Example request (using curl):
+     *              curl -X POST http://localhost:8080/tasks \
+     *              -H "Content-Type: application/json" \
+     *              -d '{"title": "Buy milk", "done": false}'
      *
      * @param task the new task's data, parsed automatically from JSON
      * @return the same task, now including the auto-generated ID
