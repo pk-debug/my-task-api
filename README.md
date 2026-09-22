@@ -1,194 +1,357 @@
-# Task List API (Spring Boot + SQLite)
+# Task API Project
 
-A beginner-friendly REST API built with **Spring Boot** that lets you
-create and view a list of tasks, saved permanently in a **SQLite**
-database. Built as a learning project to understand how a real backend
-API works, end to end.
+This project is a backend-focused task management application built in two versions:
 
-> **Note for future me:** if you're reading this a year from now and
-> forgot everything, just read this file top to bottom. It explains
-> every file, every config setting, and how to run the whole thing.
+- Java Spring Boot backend
+- Kotlin Ktor backend
+
+The goal is to demonstrate how a simple REST API can be built in both a classic enterprise style and a modern Kotlin server style. The app manages tasks with CRUD operations, validates data, and stores records in SQLite.
+
+This project is useful for interview preparation, backend learning, and showing a clear understanding of API design, database integration, and project structure.
 
 ---
 
 ## What this project does
 
-- `GET /tasks` → returns every saved task as JSON
-- `POST /tasks` → saves a new task (title + done status) to the database
+The application exposes a task API for managing daily tasks.
 
-Data is stored in a real SQLite database file (`tasks.db`), so tasks
-survive even after you restart the app.
+Features:
+- Create a task
+- Read all tasks
+- Read one task by ID
+- Update a task
+- Delete a task
+- Validate task title input
+- Persist data in SQLite
+
+Main endpoints:
+- GET /tasks
+- GET /tasks/{id}
+- POST /tasks
+- PUT /tasks/{id}
+- DELETE /tasks/{id}
+
+Example task JSON:
+
+```json
+{
+  "title": "Buy groceries",
+  "done": false
+}
+```
+
+---
+
+## Why two backends?
+
+This repository includes both:
+
+1. Spring Boot Java version
+   - Great for enterprise-style backend applications
+   - Uses Spring MVC, JPA, and repository pattern
+   - Common in many production environments
+
+2. Ktor Kotlin version
+   - Great for modern Kotlin server apps
+   - Lightweight and clean route-based architecture
+   - Good for showing Kotlin backend skills in interviews
+
+Both versions solve the same problem: manage tasks through API endpoints.
 
 ---
 
 ## Tech stack
 
-| Tool | Purpose |
-|---|---|
-| Java 17 | The programming language |
-| Spring Boot 4.1.0 | Framework that handles web requests, wiring, and configuration |
-| Maven | Builds the project and manages dependencies (libraries) |
-| Spring Data JPA + Hibernate | Converts Java objects into database rows automatically |
-| SQLite | The actual database - a single file, no server needed |
-| DB Browser for SQLite | GUI tool to visually inspect/edit the database file |
+### Java Spring Boot version
+- Java 17
+- Spring Boot 4.1.0
+- Maven
+- Spring Web
+- Spring Data JPA
+- Hibernate
+- SQLite JDBC
+- Jakarta Validation
+
+### Kotlin Ktor version
+- Kotlin
+- Ktor 3.0.1
+- Kotlin Serialization
+- Gradle
+- Netty server engine
+- SQLite JDBC
+- Call logging and status pages
 
 ---
 
 ## Project structure
 
-```
-demo/
-├── pom.xml                                  Maven's "recipe" file (see below)
-├── src/main/resources/
-│   └── application.properties               App configuration/settings
-└── src/main/java/com/example/demo/
-    ├── DemoApplication.java (or HireSpringBootApplication.java)
-    │                                         The app's entry point (main method)
-    ├── Task.java                             Blueprint for a single task + DB table
-    ├── TaskRepository.java                   Auto-generated database access layer
-    └── TaskController.java                   Handles incoming GET/POST requests
-```
-
----
-
-## How a request flows through the app
-
-```
-Browser / curl
-      │  (1) sends an HTTP request, e.g. GET /tasks
-      ▼
-TaskController.java
-      │  (2) calls taskRepository.findAll()
-      ▼
-TaskRepository.java
-      │  (3) Spring Data JPA auto-generates the SQL behind the scenes
-      ▼
-tasks.db  (SQLite file)
-      │  (4) returns the raw rows
-      ▼
-Task.java objects
-      │  (5) converted into JSON automatically by @RestController
-      ▼
-Browser / curl  (sees the JSON response)
+```text
+my-task-api/
+├── README.md
+├── pom.xml
+├── mvnw
+├── mvnw.cmd
+├── .mvn/
+├── src/
+│   └── main/
+│       ├── java/
+│       │   └── com/example/taskapi/
+│       │       ├── HireSpringBootApplication.java
+│       │       ├── Task.java
+│       │       ├── TaskController.java
+│       │       └── TaskRepository.java
+│       └── resources/
+│           └── application.properties
+├── target/
+├── tasks.db
+└── ktor-backend/
+    ├── build.gradle.kts
+    ├── settings.gradle.kts
+    └── src/
+        └── main/
+            └── kotlin/
+                └── com/example/taskapi/
+                    ├── Application.kt
+                    ├── Task.kt
+                    ├── TaskRepository.kt
+                    └── TaskRoutes.kt
 ```
 
 ---
 
-## File-by-file explanation
+## Spring Boot project details
 
-### `pom.xml` — Maven's recipe file
+### pom.xml
+This is the Maven build file. It tells the project:
+- which dependencies to download
+- which Java version to compile with
+- how the app should be packaged and run
 
-Every Maven project has a `pom.xml` ("Project Object Model"). Think of
-it as a recipe card that tells Maven:
+Important dependencies include:
+- spring-boot-starter-web for HTTP endpoints
+- spring-boot-starter-data-jpa for database access
+- spring-boot-starter-validation for request validation
+- sqlite-jdbc for SQLite connectivity
 
-- **What libraries (dependencies) this project needs.** For example,
-  we added:
-  - `spring-boot-starter-web` → lets us build REST APIs (`@RestController`, etc.)
-  - `spring-boot-starter-data-jpa` → lets us use `@Entity`, `JpaRepository`, etc.
-  - `sqlite-jdbc` → the actual driver that lets Java talk to SQLite files
-  - `hibernate-community-dialects` → teaches Hibernate SQLite's specific SQL grammar
-- **What Java version to compile against** (17, in our case)
-- **How to package the final app** (as a runnable `.jar` file)
+### src/main/resources/application.properties
+This file contains the app configuration.
 
-You never manually download these libraries — when you run
-`./mvnw spring-boot:run`, Maven reads `pom.xml`, downloads whatever is
-missing from the internet (into `~/.m2` on your machine), and wires it
-all together.
+Key values:
+- `spring.datasource.url=jdbc:sqlite:tasks.db` → points to the SQLite database file
+- `spring.jpa.hibernate.ddl-auto=update` → creates tables automatically if missing
+- `spring.jpa.show-sql=true` → prints SQL in the console for learning/debugging
 
-**Rule of thumb:** if you ever add a new feature that needs a new
-library (e.g. sending emails, security/login, etc.), you add a new
-`<dependency>` block to `pom.xml` first.
+### src/main/java/com/example/taskapi/HireSpringBootApplication.java
+This is the main Spring Boot entry point.
 
-### `application.properties` — app configuration
+It starts the app with:
 
-Lives in `src/main/resources/`. This is where we configure *how* the
-app behaves — database location, logging behavior, server port, etc.
-Full explanation with inline comments is in the file itself; the short
-version:
+```java
+SpringApplication.run(HireSpringBootApplication.class, args);
+```
 
-- Tells Spring where the SQLite file lives (`tasks.db`)
-- Tells Hibernate to auto-create/update database tables to match our
-  `@Entity` classes (`spring.jpa.hibernate.ddl-auto=update`)
-- Turns on SQL logging in the terminal so we can see what's happening
-  under the hood (`spring.jpa.show-sql=true`)
+This is the class that launches the Java backend.
 
-### `Task.java` — the data blueprint
+### src/main/java/com/example/taskapi/Task.java
+This is the task entity.
 
-Defines what a single Task *looks like*: an `id`, a `title`, and a
-`done` flag. Marked with `@Entity`, which tells Hibernate "this class
-represents a database table" — so a `task` table with matching columns
-gets created automatically.
+It maps to the database table named `tasks` and contains:
+- `id` as primary key
+- `title` as task text
+- `done` as completion status
 
-### `TaskRepository.java` — the database access layer
+Important annotations:
+- `@Entity` → marks it as a JPA entity
+- `@Table(name = "tasks")` → maps it to a database table
+- `@NotBlank` → prevents empty title values
 
-An empty interface that extends `JpaRepository<Task, Long>`. Despite
-having zero lines of actual logic, it gives us working methods like
-`findAll()` and `save()` for free — Spring generates the implementation
-automatically at startup.
+### src/main/java/com/example/taskapi/TaskRepository.java
+This repository layer handles database access.
 
-### `TaskController.java` — the API's front door
+It extends `JpaRepository<Task, Long>`, which gives built-in methods like:
+- `findAll()`
+- `findById()`
+- `save()`
+- `deleteById()`
 
-Defines the actual URLs (`/tasks`) and what happens when someone visits
-them with `GET` or `POST`. This is the only file that directly talks to
-the outside world (browsers, curl, apps).
+This removes the need to write raw SQL manually.
+
+### src/main/java/com/example/taskapi/TaskController.java
+This is the REST controller that exposes the API endpoints.
+
+It contains:
+- GET /tasks → fetch all tasks
+- GET /tasks/{id} → fetch one task by ID
+- POST /tasks → create a task
+- PUT /tasks/{id} → update task
+- DELETE /tasks/{id} → delete task
+
+The controller receives HTTP requests and converts them to Java objects using Spring.
 
 ---
 
-## How to run this project
+## Ktor project details
+
+### ktor-backend/build.gradle.kts
+This is the Gradle build file for the Kotlin Ktor app.
+
+It includes:
+- Kotlin JVM plugin
+- Kotlin serialization plugin
+- Ktor server dependencies
+- Netty server engine
+- JSON serialization support
+- logging plugins
+- test dependencies
+
+This file defines how the Ktor application is built and run.
+
+### ktor-backend/settings.gradle.kts
+This is the Gradle settings file for the Ktor module and sets the project name.
+
+### ktor-backend/src/main/kotlin/com/example/taskapi/Application.kt
+This is the main app file.
+
+It does several important things:
+- starts the Ktor server on port 8081
+- installs JSON serialization
+- installs request logging
+- installs status pages for errors
+- sets up routing using the task routes
+
+The server starts with:
+
+```kotlin
+embeddedServer(Netty, port = 8081, host = "0.0.0.0", module = Application::module)
+```
+
+### ktor-backend/src/main/kotlin/com/example/taskapi/Task.kt
+This file defines the task models.
+
+It contains:
+- `Task` data class
+- `TaskRequest` data class
+
+The `@Serializable` annotation allows Kotlin objects to be converted to/from JSON automatically.
+
+### ktor-backend/src/main/kotlin/com/example/taskapi/TaskRepository.kt
+This is the in-memory repository used by Ktor.
+
+It stores tasks in a `linkedMapOf` and exposes methods like:
+- `getAll()`
+- `getById()`
+- `create()`
+- `update()`
+- `delete()`
+
+This is a simple version of a repository pattern suitable for learning and interviews.
+
+### ktor-backend/src/main/kotlin/com/example/taskapi/TaskRoutes.kt
+This file defines the route logic.
+
+It handles:
+- GET /tasks
+- GET /tasks/{id}
+- POST /tasks
+- PUT /tasks/{id}
+- DELETE /tasks/{id}
+
+It validates input and returns clear HTTP status codes such as:
+- 400 Bad Request for invalid or empty titles
+- 404 Not Found for missing tasks
+- 201 Created for successful creation
+
+---
+
+## How to run the Spring Boot project
+
+From the project root:
 
 ```bash
-cd demo
+cd /Users/pawankumar/AndroidStudioProjects/my-task-api
+./mvnw clean test
 ./mvnw spring-boot:run
 ```
 
-Wait for a line like:
-```
-Started DemoApplication in X seconds
-```
+Then open:
 
-The app is now running at **http://localhost:8080**.
-
-> If you see `Port 8080 was already in use`, an older instance of the
-> app is still running in another terminal tab. Go find that tab and
-> press `Ctrl+C` there first, or run `lsof -i :8080` to find and
-> `kill -9 <PID>` the process using it.
+```text
+http://localhost:8080/tasks
+```
 
 ---
 
-## How to test the API
+## How to run the Ktor project
 
-### Get all tasks (works directly in a browser)
-Visit: http://localhost:8080/tasks
+From the Ktor project folder:
 
-### Create a new task (needs a tool, since browsers can't send POST easily)
+```bash
+cd /Users/pawankumar/AndroidStudioProjects/my-task-api/ktor-backend
+gradle clean test
+gradle run
+```
+
+Then open:
+
+```text
+http://localhost:8081/tasks
+```
+
+---
+
+## Example API calls
+
+### Get all tasks
+
+```bash
+curl http://localhost:8080/tasks
+```
+
+### Create a task
+
 ```bash
 curl -X POST http://localhost:8080/tasks \
   -H "Content-Type: application/json" \
-  -d '{"title": "Buy milk", "done": false}'
+  -d '{"title":"Buy milk","done":false}'
 ```
 
-Then refresh http://localhost:8080/tasks in your browser — the new
-task will appear.
+### Update a task
+
+```bash
+curl -X PUT http://localhost:8080/tasks/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Buy milk and bread","done":true}'
+```
+
+### Delete a task
+
+```bash
+curl -X DELETE http://localhost:8080/tasks/1
+```
 
 ---
 
-## Viewing/editing the database with DB Browser for SQLite
+## Notes for interview/demo purposes
 
-1. Open **DB Browser for SQLite**
-2. Click **Open Database** → select `tasks.db` from your project folder
-3. Click the **Browse Data** tab → pick the `task` table from the dropdown
-4. You'll see every saved task in a spreadsheet-like view
+This project is a good demonstration of:
+- REST API design
+- CRUD operations
+- Java backend development
+- Kotlin backend development
+- database persistence
+- validation
+- controller and repository patterns
+- project folder structure and modular backend architecture
 
-You can manually add/edit rows here too. If the app is running at the
-same time, click **Write Changes** in DB Browser after any edit so the
-API can see the update.
+It is intentionally simple, easy to understand, and structured in a way that is helpful for learning and presenting in interviews.
 
 ---
 
-## Ideas for what to build next
+## Final summary
 
-- `GET /tasks/{id}` → fetch a single task by its ID
-- `PUT /tasks/{id}` → update an existing task (e.g. mark it done)
-- `DELETE /tasks/{id}` → remove a task
-- Add validation (e.g. reject empty titles)
-- Add a `createdAt` timestamp field to each task
+This repository shows two ways to build the same backend idea:
+
+- Spring Boot version: classic Java enterprise-style API
+- Ktor version: modern Kotlin server-side API
+
+Both are focused on task management and can be used as a strong interview project to explain backend fundamentals, API routes, validation, and persistence.
