@@ -32,11 +32,23 @@ class TaskRoutesTest {
 
         val response = client.post("/tasks") {
             contentType(ContentType.Application.Json)
-            setBody("""{"title":"Prepare Kotlin answer","done":false}""")
+            setBody(
+                """{
+                "title":"Prepare Kotlin answer",
+                "description":"Explain architecture and routes",
+                "done":false,
+                "priority":"HIGH",
+                "tags":["kotlin","backend"],
+                "subtasks":[{"title":"Explain repository","done":true},{"title":"Demo API call","done":false}]
+                }"""
+            )
         }
 
         assertEquals(HttpStatusCode.Created, response.status)
         val body = response.bodyAsText()
         assertTrue(body.contains("Prepare Kotlin answer"))
+        assertTrue(body.contains("HIGH"))
+        assertTrue(body.contains("Explain repository"))
+        assertTrue(body.contains("backend"))
     }
 }

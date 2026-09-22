@@ -15,7 +15,11 @@ class TaskRepository {
         val task = Task(
             id = id,
             title = taskRequest.title.trim(),
-            done = taskRequest.done
+            description = taskRequest.description.trim(),
+            done = taskRequest.done,
+            priority = taskRequest.priority.ifBlank { "MEDIUM" },
+            tags = taskRequest.tags.map { it.trim() }.filter { it.isNotEmpty() },
+            subtasks = taskRequest.subtasks.map { it.copy(title = it.title.trim()) }
         )
         tasks[id] = task
         return task
@@ -25,7 +29,11 @@ class TaskRepository {
         val existing = tasks[id] ?: return null
         val updated = existing.copy(
             title = taskRequest.title.trim(),
-            done = taskRequest.done
+            description = taskRequest.description.trim(),
+            done = taskRequest.done,
+            priority = taskRequest.priority.ifBlank { "MEDIUM" },
+            tags = taskRequest.tags.map { it.trim() }.filter { it.isNotEmpty() },
+            subtasks = taskRequest.subtasks.map { it.copy(title = it.title.trim()) }
         )
         tasks[id] = updated
         return updated
