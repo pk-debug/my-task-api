@@ -1,9 +1,12 @@
 package com.example.taskapi;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * Task.java
@@ -30,6 +33,7 @@ import jakarta.persistence.Id;
  *   "encapsulation."
  */
 @Entity
+@Table(name = "tasks")
 public class Task {
 
     /**
@@ -49,6 +53,8 @@ public class Task {
     private Long id;
 
     /** The text of the task, e.g. "Buy milk" or "Finish homework". */
+    @NotBlank(message = "Title is required")
+    @Column(nullable = false)
     private String title;
 
     /** Whether this task has been completed yet. Defaults to false. */

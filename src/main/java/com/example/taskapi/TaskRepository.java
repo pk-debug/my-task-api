@@ -30,12 +30,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
  * but it saves an enormous amount of repetitive database code.
  */
 public interface TaskRepository extends JpaRepository<Task, Long> {
-    // Intentionally empty.
-    // If we ever need a custom query (e.g. "find all tasks that are NOT
-    // done yet"), we would declare a new method signature here, like:
-    //
-    //   List<Task> findByDoneFalse();
-    //
-    // and Spring Data JPA would automatically write the SQL for it just
-    // by reading the method name. No implementation needed.
+    java.util.List<Task> findByDoneFalse();
 }
