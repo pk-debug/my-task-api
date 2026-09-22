@@ -1,133 +1,199 @@
 package com.example.taskapi;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * Task.java
- * ---------
- * This class is a "blueprint" for a single Task. Every Task object built
- * from this blueprint will have exactly 3 pieces of information:
- *   1. id    - a unique number identifying this task
- *   2. title - the text describing the task (e.g. "Buy milk")
- *   3. done  - whether the task has been completed (true/false)
- *
- * @Entity
- *   This is the most important annotation here. It tells Spring:
- *   "This class isn't just a normal Java class - it represents a TABLE
- *   in the database." Because of this one annotation, Hibernate (the
- *   library that talks to the database on our behalf) automatically
- *   creates a table called "task" with columns matching our variables
- *   below (id, title, done).
- *
- * Why are the variables "private"?
- *   Making them private means no other class can reach in and change
- *   them directly (e.g. someController.task.title = "hack"). Instead,
- *   other classes must go through the public getter/setter methods
- *   below. This protects our data and is a core rule of Java called
- *   "encapsulation."
- */
 @Entity
 @Table(name = "tasks")
 public class Task {
 
-    /**
-     * The unique ID for this task.
-     *
-     * @Id
-     *   Tells Hibernate "this field is the primary key" - the unique
-     *   fingerprint that identifies one row in the database table.
-     *
-     * @GeneratedValue(strategy = GenerationType.IDENTITY)
-     *   Tells the database "you generate this number for me automatically
-     *   every time a new task is saved (1, 2, 3, ...)." We never set this
-     *   ourselves - the database handles it.
-     */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** The text of the task, e.g. "Buy milk" or "Finish homework". */
     @NotBlank(message = "Title is required")
     @Column(nullable = false)
     private String title;
 
-    /** Whether this task has been completed yet. Defaults to false. */
+    @Column(columnDefinition = "TEXT")
+    private String description = "";
+
     private boolean done;
 
-    /**
-     * Empty (no-argument) constructor.
-     *
-     * Spring and Hibernate require this to exist so they can create a
-     * blank Task object internally (for example, when reading a row back
-     * from the database) and then fill in the fields afterward using the
-     * setter methods below. You will rarely call this yourself directly.
-     */
+    @Column(nullable = false)
+    private String priority = "MEDIUM";
+
+    @Convert(converter = TagListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<String> tags = new ArrayList<>();
+
+    @Convert(converter = SubtaskListConverter.class)
+    @Column(columnDefinition = "TEXT")
+    private List<Subtask> subtasks = new ArrayList<>();
+
     public Task() {
     }
 
-    /**
-     * Convenience constructor - lets you build a fully-filled Task in
-     * one line instead of calling three separate setters.
-     *
-     * Example usage:
-     *   Task t = new Task("Buy milk", false);
-     *
-     * Note: "id" is intentionally NOT a parameter here, because the
-     * database assigns the id automatically when the task is saved.
-     *
-     * @param title the description of the task
-     * @param done  whether the task is already completed
-     */
-    public Task(String title, boolean done) {
+    public Task(String title, String description, boolean done, String priority,
+                List<String> tags, List<Subtask> subtasks) {
         this.title = title;
+        this.description = description;
         this.done = done;
+        this.priority = priority == null || priority.isBlank() ? "MEDIUM" : priority;
+        this.tags = tags == null ? new ArrayList<>() : new ArrayList<>(tags);
+        this.subtasks = subtasks == null ? new ArrayList<>() : new ArrayList<>(subtasks);
     }
 
-    // -------------------------------------------------------------
-    // Getters and setters
-    // These are the "public doors" that let other classes (like
-    // TaskController) read or update this task's private data safely.
-    // -------------------------------------------------------------
-
-    /** @return this task's unique database ID. */
     public Long getId() {
         return id;
     }
 
-    /**
-     * Updates this task's ID.
-     * "void" means this method changes something but doesn't hand
-     * back any data to whoever called it.
-     *
-     * @param id the new ID value
-     */
     public void setId(Long id) {
         this.id = id;
     }
 
-    /** @return the task's title text. */
     public String getTitle() {
         return title;
     }
 
-    /** @param title the new title text for this task. */
     public void setTitle(String title) {
         this.title = title;
     }
 
-    /** @return true if the task is completed, false otherwise. */
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
     public boolean isDone() {
         return done;
     }
 
-    /** @param done the new completion status for this task. */
     public void setDone(boolean done) {
         this.done = done;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
+    public List<String> getTags() {
+        return tags;
+    }
+
+    public void setTags(List<String> tags) {
+        this.tags = tags == null ? new ArrayList<>() : tags;
+    }
+
+    public List<Subtask> getSubtasks() {
+        return subtasks;
+    }
+
+    public void setSubtasks(List<Subtask> subtasks) {
+        this.subtasks = subtasks == null ? new ArrayList<>() : subtasks;
+    }
+
+    public static class Subtask {
+        private String title;
+        private boolean done;
+
+        public Subtask() {
+        }
+
+        public Subtask(String title, boolean done) {
+            this.title = title;
+            this.done = done;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public boolean isDone() {
+            return done;
+        }
+
+        public void setDone(boolean done) {
+            this.done = done;
+        }
+    }
+
+    public static class TagListConverter implements AttributeConverter<List<String>, String> {
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        @Override
+        public String convertToDatabaseColumn(List<String> attribute) {
+            if (attribute == null || attribute.isEmpty()) {
+                return "[]";
+            }
+            try {
+                return objectMapper.writeValueAsString(attribute);
+            } catch (JsonProcessingException e) {
+                throw new IllegalArgumentException("Unable to convert tags to JSON", e);
+            }
+        }
+
+        @Override
+        public List<String> convertToEntityAttribute(String dbData) {
+            if (dbData == null || dbData.isBlank()) {
+                return new ArrayList<>();
+            }
+            try {
+                return objectMapper.readValue(dbData, new TypeReference<List<String>>() {});
+            } catch (JsonProcessingException e) {
+                throw new IllegalArgumentException("Unable to convert tags from JSON", e);
+            }
+        }
+    }
+
+    public static class SubtaskListConverter implements AttributeConverter<List<Subtask>, String> {
+        private final ObjectMapper objectMapper = new ObjectMapper();
+
+        @Override
+        public String convertToDatabaseColumn(List<Subtask> attribute) {
+            if (attribute == null || attribute.isEmpty()) {
+                return "[]";
+            }
+            try {
+                return objectMapper.writeValueAsString(attribute);
+            } catch (JsonProcessingException e) {
+                throw new IllegalArgumentException("Unable to convert subtasks to JSON", e);
+            }
+        }
+
+        @Override
+        public List<Subtask> convertToEntityAttribute(String dbData) {
+            if (dbData == null || dbData.isBlank()) {
+                return new ArrayList<>();
+            }
+            try {
+                return objectMapper.readValue(dbData, new TypeReference<List<Subtask>>() {});
+            } catch (JsonProcessingException e) {
+                throw new IllegalArgumentException("Unable to convert subtasks from JSON", e);
+            }
+        }
     }
 }
