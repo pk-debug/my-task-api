@@ -37,11 +37,23 @@ public class TaskController {
 
     @PostMapping
     public ResponseEntity<Task> createTask(@Valid @RequestBody Task task) {
+        if (task.getLabels() == null) {
+            task.setLabels(List.of());
+        }
         if (task.getTags() == null) {
             task.setTags(List.of());
         }
+        if (task.getCategories() == null) {
+            task.setCategories(List.of());
+        }
+        if (task.getComments() == null) {
+            task.setComments(List.of());
+        }
         if (task.getSubtasks() == null) {
             task.setSubtasks(List.of());
+        }
+        if (task.getStatus() == null) {
+            task.setStatus(Task.TaskStatus.TODO);
         }
         Task savedTask = taskRepository.save(task);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedTask);
@@ -53,9 +65,15 @@ public class TaskController {
                 .map(existingTask -> {
                     existingTask.setTitle(updatedTask.getTitle());
                     existingTask.setDescription(updatedTask.getDescription());
+                    existingTask.setAssignee(updatedTask.getAssignee());
+                    existingTask.setDueDate(updatedTask.getDueDate());
+                    existingTask.setStatus(updatedTask.getStatus());
                     existingTask.setDone(updatedTask.isDone());
                     existingTask.setPriority(updatedTask.getPriority());
+                    existingTask.setLabels(updatedTask.getLabels());
                     existingTask.setTags(updatedTask.getTags());
+                    existingTask.setCategories(updatedTask.getCategories());
+                    existingTask.setComments(updatedTask.getComments());
                     existingTask.setSubtasks(updatedTask.getSubtasks());
                     return ResponseEntity.ok(taskRepository.save(existingTask));
                 })
