@@ -16,9 +16,15 @@ class TaskRepository {
             id = id,
             title = taskRequest.title.trim(),
             description = taskRequest.description.trim(),
+            assignee = taskRequest.assignee.trim(),
+            dueDate = taskRequest.dueDate.trim(),
+            status = taskRequest.status,
             done = taskRequest.done,
             priority = taskRequest.priority.ifBlank { "MEDIUM" },
+            labels = taskRequest.labels.map { it.trim() }.filter { it.isNotEmpty() },
             tags = taskRequest.tags.map { it.trim() }.filter { it.isNotEmpty() },
+            categories = taskRequest.categories.map { it.copy(name = it.name.trim()) },
+            comments = taskRequest.comments.map { it.copy(message = it.message.trim()) },
             subtasks = taskRequest.subtasks.map { it.copy(title = it.title.trim()) }
         )
         tasks[id] = task
@@ -30,9 +36,15 @@ class TaskRepository {
         val updated = existing.copy(
             title = taskRequest.title.trim(),
             description = taskRequest.description.trim(),
+            assignee = taskRequest.assignee.trim(),
+            dueDate = taskRequest.dueDate.trim(),
+            status = taskRequest.status,
             done = taskRequest.done,
             priority = taskRequest.priority.ifBlank { "MEDIUM" },
+            labels = taskRequest.labels.map { it.trim() }.filter { it.isNotEmpty() },
             tags = taskRequest.tags.map { it.trim() }.filter { it.isNotEmpty() },
+            categories = taskRequest.categories.map { it.copy(name = it.name.trim()) },
+            comments = taskRequest.comments.map { it.copy(message = it.message.trim()) },
             subtasks = taskRequest.subtasks.map { it.copy(title = it.title.trim()) }
         )
         tasks[id] = updated
