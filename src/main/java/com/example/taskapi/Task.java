@@ -1,15 +1,15 @@
 package com.example.taskapi;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.Convert;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Embeddable;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import java.util.ArrayList;
@@ -35,12 +35,13 @@ public class Task {
     @Column(nullable = false)
     private String priority = "MEDIUM";
 
-    @Convert(converter = TagListConverter.class)
-    @Column(columnDefinition = "TEXT")
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "task_tags", joinColumns = @JoinColumn(name = "task_id"))
+    @Column(name = "tag")
     private List<String> tags = new ArrayList<>();
 
-    @Convert(converter = SubtaskListConverter.class)
-    @Column(columnDefinition = "TEXT")
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "task_subtasks", joinColumns = @JoinColumn(name = "task_id"))
     private List<Subtask> subtasks = new ArrayList<>();
 
     public Task() {
@@ -112,6 +113,7 @@ public class Task {
         this.subtasks = subtasks == null ? new ArrayList<>() : subtasks;
     }
 
+    @Embeddable
     public static class Subtask {
         private String title;
         private boolean done;
@@ -138,62 +140,6 @@ public class Task {
 
         public void setDone(boolean done) {
             this.done = done;
-        }
-    }
-
-    public static class TagListConverter implements AttributeConverter<List<String>, String> {
-        private final ObjectMapper objectMapper = new ObjectMapper();
-
-        @Override
-        public String convertToDatabaseColumn(List<String> attribute) {
-            if (attribute == null || attribute.isEmpty()) {
-                return "[]";
-            }
-            try {
-                return objectMapper.writeValueAsString(attribute);
-            } catch (JsonProcessingException e) {
-                throw new IllegalArgumentException("Unable to convert tags to JSON", e);
-            }
-        }
-
-        @Override
-        public List<String> convertToEntityAttribute(String dbData) {
-            if (dbData == null || dbData.isBlank()) {
-                return new ArrayList<>();
-            }
-            try {
-                return objectMapper.readValue(dbData, new TypeReference<List<String>>() {});
-            } catch (JsonProcessingException e) {
-                throw new IllegalArgumentException("Unable to convert tags from JSON", e);
-            }
-        }
-    }
-
-    public static class SubtaskListConverter implements AttributeConverter<List<Subtask>, String> {
-        private final ObjectMapper objectMapper = new ObjectMapper();
-
-        @Override
-        public String convertToDatabaseColumn(List<Subtask> attribute) {
-            if (attribute == null || attribute.isEmpty()) {
-                return "[]";
-            }
-            try {
-                return objectMapper.writeValueAsString(attribute);
-            } catch (JsonProcessingException e) {
-                throw new IllegalArgumentException("Unable to convert subtasks to JSON", e);
-            }
-        }
-
-        @Override
-        public List<Subtask> convertToEntityAttribute(String dbData) {
-            if (dbData == null || dbData.isBlank()) {
-                return new ArrayList<>();
-            }
-            try {
-                return objectMapper.readValue(dbData, new TypeReference<List<Subtask>>() {});
-            } catch (JsonProcessingException e) {
-                throw new IllegalArgumentException("Unable to convert subtasks from JSON", e);
-            }
         }
     }
 }
