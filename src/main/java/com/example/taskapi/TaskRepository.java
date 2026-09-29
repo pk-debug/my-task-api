@@ -31,4 +31,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
  */
 public interface TaskRepository extends JpaRepository<Task, Long> {
     java.util.List<Task> findByDoneFalse();
+
+    java.util.List<Task> findAllByOwnerEmail(String ownerEmail);
+
+    java.util.Optional<Task> findByIdAndOwnerEmail(Long id, String ownerEmail);
 }

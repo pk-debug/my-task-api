@@ -18,6 +18,7 @@ application {
 
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:3.0.1")
+    implementation("io.ktor:ktor-server-auth-jwt-jvm:3.0.1")
     implementation("io.ktor:ktor-server-netty-jvm:3.0.1")
     implementation("io.ktor:ktor-server-content-negotiation-jvm:3.0.1")
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:3.0.1")
@@ -28,6 +29,7 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-dao:0.58.0")
     implementation("org.jetbrains.exposed:exposed-jdbc:0.58.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+    implementation("org.mindrot:jbcrypt:0.4")
     implementation("ch.qos.logback:logback-classic:1.5.7")
 
     testImplementation(kotlin("test"))
