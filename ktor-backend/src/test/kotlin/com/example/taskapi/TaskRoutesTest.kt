@@ -46,11 +46,15 @@ class TaskRoutesTest {
             setBody("""{"title":"private task","tags":["api"]}""")
         }
         assertEquals(HttpStatusCode.Created, createdTask.status)
+        val taskId = json.parseToJsonElement(createdTask.bodyAsText())
+            .jsonObject["id"]!!.jsonPrimitive.content
 
         val second = register("second@example.com")
         val secondAccess = second["accessToken"]!!.jsonPrimitive.content
         val secondTasks = client.get("/tasks") { bearerAuth(secondAccess) }
         assertEquals("[]", secondTasks.bodyAsText().trim())
+        val otherUsersTask = client.get("/tasks/$taskId") { bearerAuth(secondAccess) }
+        assertEquals(HttpStatusCode.NotFound, otherUsersTask.status)
 
         val refreshResponse = client.post("/auth/refresh") {
             contentType(ContentType.Application.Json)
