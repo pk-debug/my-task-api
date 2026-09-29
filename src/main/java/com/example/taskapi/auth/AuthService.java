@@ -53,6 +53,9 @@ public class AuthService {
     @Transactional
     public AuthModels.TokenResponse register(AuthModels.RegisterRequest request) {
         String email = normalizeEmail(request.email());
+        if (request.password().getBytes(StandardCharsets.UTF_8).length > 72) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must not exceed 72 UTF-8 bytes");
+        }
         if (users.existsByEmail(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
         }
@@ -70,12 +73,14 @@ public class AuthService {
 
     @Transactional
     public AuthModels.TokenResponse refresh(String rawToken) {
-        RefreshToken token = refreshTokens.findById(hash(rawToken))
-                .filter(existing -> !existing.isRevoked() && existing.getExpiresAt().isAfter(Instant.now()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+        String tokenHash = hash(rawToken);
+        if (refreshTokens.revokeIfActive(tokenHash, Instant.now()) != 1) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token");
+        }
+        RefreshToken token = refreshTokens.findById(tokenHash)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
         UserAccount user = users.findById(token.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
-        token.revoke();
         return issueTokens(user);
     }
 

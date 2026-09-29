@@ -77,18 +77,23 @@ class DemoApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value(firstEmail));
 
-        mockMvc.perform(post("/tasks")
+        MvcResult taskResult = mockMvc.perform(post("/tasks")
                 .header("Authorization", "Bearer " + firstAccessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"title\":\"private task\",\"done\":false}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.ownerEmail").doesNotExist());
+                .andExpect(jsonPath("$.ownerEmail").doesNotExist())
+                .andReturn();
+        long taskId = jsonLongField(taskResult.getResponse().getContentAsString(), "id");
 
         String secondEmail = "second-" + UUID.randomUUID() + "@example.com";
         String second = register(secondEmail);
         mockMvc.perform(get("/tasks").header("Authorization", "Bearer " + jsonField(second, "accessToken")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(0)));
+        mockMvc.perform(get("/tasks/{id}", taskId)
+                .header("Authorization", "Bearer " + jsonField(second, "accessToken")))
+                .andExpect(status().isNotFound());
 
         MvcResult refreshResult = mockMvc.perform(post("/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -113,23 +118,33 @@ class DemoApplicationTests {
                 .andExpect(status().isUnauthorized());
     }
 
-        private String register(String email) throws Exception {
+    private String register(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                                .content("{\"email\":\"" + email + "\",\"password\":\"a-secure-test-password\",\"name\":\"Test User\"}"))
+                .content("{\"email\":\"" + email + "\",\"password\":\"a-secure-test-password\",\"name\":\"Test User\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
                 .andReturn();
-                return result.getResponse().getContentAsString();
-        }
+        return result.getResponse().getContentAsString();
+    }
 
-        private String jsonField(String json, String field) {
-                java.util.regex.Matcher matcher = java.util.regex.Pattern
-                                .compile("\\\"" + field + "\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
-                                .matcher(json);
-                if (!matcher.find()) {
-                        throw new AssertionError("Missing JSON field: " + field);
-                }
-                return matcher.group(1);
+    private String jsonField(String json, String field) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\\\"" + field + "\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+                .matcher(json);
+        if (!matcher.find()) {
+            throw new AssertionError("Missing JSON field: " + field);
+        }
+        return matcher.group(1);
+    }
+
+    private long jsonLongField(String json, String field) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern
+                .compile("\\\"" + field + "\\\"\\s*:\\s*(\\d+)")
+                .matcher(json);
+        if (!matcher.find()) {
+            throw new AssertionError("Missing JSON field: " + field);
+        }
+        return Long.parseLong(matcher.group(1));
     }
 }

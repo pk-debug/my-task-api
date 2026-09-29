@@ -3,6 +3,7 @@ package com.example.taskapi
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.authenticate
@@ -12,11 +13,12 @@ import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.calllogging.CallLogging
+import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ContentTransformationException
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
-import io.ktor.server.response.respond
 import io.ktor.server.routing.routing
 import com.example.taskapi.auth.ApiError
 import com.example.taskapi.auth.AuthException
@@ -27,7 +29,8 @@ import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
 
 fun main() {
-    embeddedServer(Netty, port = 8081, host = "0.0.0.0", module = { module() })
+    val port = System.getenv("PORT")?.toIntOrNull() ?: 8081
+    embeddedServer(Netty, port = port, host = "0.0.0.0", module = { module() })
         .start(wait = true)
 }
 
@@ -43,6 +46,7 @@ fun Application.module() {
 fun Application.module(jwtSecret: String, jdbcUrl: String) {
     val authRepository = AuthRepository(jdbcUrl)
     val authService = AuthService(authRepository, jwtSecret)
+    monitor.subscribe(ApplicationStopped) { authRepository.close() }
 
     install(ContentNegotiation) {
         json(Json {
@@ -56,6 +60,12 @@ fun Application.module(jwtSecret: String, jdbcUrl: String) {
     }
 
     install(StatusPages) {
+        exception<BadRequestException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, ApiError(cause.message ?: "Invalid request"))
+        }
+        exception<ContentTransformationException> { call, cause ->
+            call.respond(HttpStatusCode.BadRequest, ApiError(cause.message ?: "Invalid request body"))
+        }
         exception<AuthException> { call, cause ->
             call.respond(HttpStatusCode.fromValue(cause.statusCode), ApiError(cause.message))
         }
