@@ -6,14 +6,15 @@ class TaskRepository {
     private val tasks = linkedMapOf<Long, Task>()
     private val nextId = AtomicLong(1L)
 
-    fun getAll(): List<Task> = tasks.values.toList()
+    fun getAll(ownerId: Long): List<Task> = tasks.values.filter { it.ownerId == ownerId }
 
-    fun getById(id: Long): Task? = tasks[id]
+    fun getById(id: Long, ownerId: Long): Task? = tasks[id]?.takeIf { it.ownerId == ownerId }
 
-    fun create(taskRequest: TaskRequest): Task {
+    fun create(taskRequest: TaskRequest, ownerId: Long): Task {
         val id = nextId.getAndIncrement()
         val task = Task(
             id = id,
+            ownerId = ownerId,
             title = taskRequest.title.trim(),
             description = taskRequest.description.trim(),
             assignee = taskRequest.assignee.trim(),
@@ -31,8 +32,8 @@ class TaskRepository {
         return task
     }
 
-    fun update(id: Long, taskRequest: TaskRequest): Task? {
-        val existing = tasks[id] ?: return null
+    fun update(id: Long, taskRequest: TaskRequest, ownerId: Long): Task? {
+        val existing = getById(id, ownerId) ?: return null
         val updated = existing.copy(
             title = taskRequest.title.trim(),
             description = taskRequest.description.trim(),
@@ -51,5 +52,5 @@ class TaskRepository {
         return updated
     }
 
-    fun delete(id: Long): Boolean = tasks.remove(id) != null
+    fun delete(id: Long, ownerId: Long): Boolean = getById(id, ownerId)?.let { tasks.remove(id) != null } ?: false
 }

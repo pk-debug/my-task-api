@@ -4,3 +4,6 @@ ktor:
       - com.example.taskapi.ApplicationKt.module
   deployment:
     port: 8080
+auth:
+  jwtSecret: ${?JWT_SECRET}
+  jdbcUrl: "jdbc:sqlite:auth.db"

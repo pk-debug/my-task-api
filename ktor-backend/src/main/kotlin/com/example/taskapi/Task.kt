@@ -1,6 +1,7 @@
 package com.example.taskapi
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 enum class TaskStatus {
     TODO,
@@ -31,6 +32,7 @@ data class Category(
 @Serializable
 data class Task(
     val id: Long = 0L,
+    @Transient val ownerId: Long = 0L,
     val title: String,
     val description: String = "",
     val assignee: String = "",
