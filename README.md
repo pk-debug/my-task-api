@@ -221,13 +221,22 @@ The Spring `auth` package separates the HTTP controller, request/response models
 
 Every `/tasks` route requires `Authorization: Bearer <accessToken>`. Users can only access their own tasks.
 
-Register and login request:
+Registration request:
 
 ```json
 {
   "email": "dev@example.com",
   "password": "a-secure-password",
   "name": "Dev User"
+}
+```
+
+Login request:
+
+```json
+{
+  "email": "dev@example.com",
+  "password": "a-secure-password"
 }
 ```
 
