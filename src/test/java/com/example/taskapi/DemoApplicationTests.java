@@ -7,10 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,9 +23,6 @@ class DemoApplicationTests {
 
         @Autowired
         private MockMvc mockMvc;
-
-        @Autowired
-        private ObjectMapper objectMapper;
 
     @Test
     void contextLoads() {
@@ -75,9 +69,9 @@ class DemoApplicationTests {
         mockMvc.perform(get("/tasks")).andExpect(status().isUnauthorized());
 
         String firstEmail = "first-" + UUID.randomUUID() + "@example.com";
-        JsonNode first = register(firstEmail);
-        String firstAccessToken = first.path("accessToken").asText();
-        String firstRefreshToken = first.path("refreshToken").asText();
+        String first = register(firstEmail);
+        String firstAccessToken = jsonField(first, "accessToken");
+        String firstRefreshToken = jsonField(first, "refreshToken");
 
         mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + firstAccessToken))
                 .andExpect(status().isOk())
@@ -91,45 +85,51 @@ class DemoApplicationTests {
                 .andExpect(jsonPath("$.ownerEmail").doesNotExist());
 
         String secondEmail = "second-" + UUID.randomUUID() + "@example.com";
-        JsonNode second = register(secondEmail);
-        mockMvc.perform(get("/tasks").header("Authorization", "Bearer " + second.path("accessToken").asText()))
+        String second = register(secondEmail);
+        mockMvc.perform(get("/tasks").header("Authorization", "Bearer " + jsonField(second, "accessToken")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(0)));
 
         MvcResult refreshResult = mockMvc.perform(post("/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("refreshToken", firstRefreshToken))))
+                .content("{\"refreshToken\":\"" + firstRefreshToken + "\"}"))
                 .andExpect(status().isOk())
                 .andReturn();
-        String rotatedRefreshToken = objectMapper.readTree(refreshResult.getResponse().getContentAsString())
-                .path("refreshToken").asText();
+        String rotatedRefreshToken = jsonField(refreshResult.getResponse().getContentAsString(), "refreshToken");
 
         mockMvc.perform(post("/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("refreshToken", firstRefreshToken))))
+                .content("{\"refreshToken\":\"" + firstRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
 
         mockMvc.perform(post("/auth/logout")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("refreshToken", rotatedRefreshToken))))
+                .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(post("/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of("refreshToken", rotatedRefreshToken))))
+                .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
     }
 
-    private JsonNode register(String email) throws Exception {
+        private String register(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(Map.of(
-                        "email", email,
-                        "password", "a-secure-test-password",
-                        "name", "Test User"))))
+                                .content("{\"email\":\"" + email + "\",\"password\":\"a-secure-test-password\",\"name\":\"Test User\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
                 .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString());
+                return result.getResponse().getContentAsString();
+        }
+
+        private String jsonField(String json, String field) {
+                java.util.regex.Matcher matcher = java.util.regex.Pattern
+                                .compile("\\\"" + field + "\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+                                .matcher(json);
+                if (!matcher.find()) {
+                        throw new AssertionError("Missing JSON field: " + field);
+                }
+                return matcher.group(1);
     }
 }
