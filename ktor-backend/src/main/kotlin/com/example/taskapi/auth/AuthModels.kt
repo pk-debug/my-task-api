@@ -20,7 +20,6 @@ data class RefreshRequest(
     val refreshToken: String
 )
 
-@Serializable
 data class AuthUser(
     val id: Long,
     val email: String,
