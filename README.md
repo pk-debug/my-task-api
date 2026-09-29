@@ -5,7 +5,7 @@ This project is a backend-focused task management application built in two versi
 - Java Spring Boot backend
 - Kotlin Ktor backend
 
-The goal is to demonstrate how a simple REST API can be built in both a classic enterprise style and a modern Kotlin server style. The app manages tasks with CRUD operations, validates data, and stores records in SQLite.
+The goal is to demonstrate the same backend domain in a classic Spring Boot style and a Kotlin Ktor style. Both APIs provide account registration and login, signed access tokens, rotating refresh tokens, and authenticated task CRUD. Spring persists users, refresh tokens, and tasks in SQLite; Ktor persists auth data in SQLite and currently keeps tasks in memory.
 
 This project is useful for interview preparation, backend learning, and showing a clear understanding of API design, database integration, and project structure.
 
@@ -22,9 +22,19 @@ Features:
 - Update a task
 - Delete a task
 - Validate task title input
-- Persist data in SQLite
+- Register and log in with an email and password
+- Hash passwords with BCrypt
+- Issue short-lived JWT access tokens and rotating refresh tokens
+- Revoke refresh tokens on logout
+- Protect task endpoints and scope tasks to the authenticated account
+- Persist auth data in SQLite
 
 Main endpoints:
+- POST /auth/register
+- POST /auth/login
+- POST /auth/refresh
+- POST /auth/logout
+- GET /auth/me
 - GET /tasks
 - GET /tasks/{id}
 - POST /tasks
@@ -67,6 +77,7 @@ Both versions solve the same problem: manage tasks through API endpoints.
 - Spring Boot 4.1.0
 - Maven
 - Spring Web
+- Spring Security and OAuth2 Resource Server JWT
 - Spring Data JPA
 - Hibernate
 - SQLite JDBC
@@ -79,6 +90,8 @@ Both versions solve the same problem: manage tasks through API endpoints.
 - Gradle
 - Netty server engine
 - SQLite JDBC
+- Ktor JWT authentication
+- BCrypt password hashing
 - Call logging and status pages
 
 ---
@@ -99,7 +112,10 @@ my-task-api/
 │       │       ├── HireSpringBootApplication.java
 │       │       ├── Task.java
 │       │       ├── TaskController.java
-│       │       └── TaskRepository.java
+│       │       ├── TaskService.java
+│       │       ├── TaskRepository.java
+│       │       ├── auth/ (account and token controller, service, models, entities, repositories)
+│       │       └── config/SecurityConfig.java
 │       └── resources/
 │           └── application.properties
 ├── target/
@@ -129,6 +145,7 @@ This is the Maven build file. It tells the project:
 
 Important dependencies include:
 - spring-boot-starter-web for HTTP endpoints
+- spring-boot-starter-security and spring-boot-starter-oauth2-resource-server for JWT protection
 - spring-boot-starter-data-jpa for database access
 - spring-boot-starter-validation for request validation
 - sqlite-jdbc for SQLite connectivity
@@ -186,7 +203,43 @@ It contains:
 - PUT /tasks/{id} → update task
 - DELETE /tasks/{id} → delete task
 
-The controller receives HTTP requests and converts them to Java objects using Spring.
+The controller receives HTTP requests, reads the authenticated account from the JWT, and delegates business operations to `TaskService`. Tasks are only returned or modified for their owner.
+
+### Authentication architecture
+
+The Spring `auth` package separates the HTTP controller, request/response models, auth service, user and refresh-token entities, and repositories. `SecurityConfig` verifies bearer JWTs and keeps the API stateless. `TaskService` separates task business operations from the web controller and persistence layer.
+
+### Authentication endpoints
+
+| Method | Endpoint | Purpose | Auth required |
+| --- | --- | --- | --- |
+| POST | `/auth/register` | Create an account and return tokens | No |
+| POST | `/auth/login` | Verify credentials and return tokens | No |
+| POST | `/auth/refresh` | Rotate a refresh token and return a new token pair | No |
+| POST | `/auth/logout` | Revoke a refresh token | No |
+| GET | `/auth/me` | Return the authenticated account profile | Yes |
+
+Every `/tasks` route requires `Authorization: Bearer <accessToken>`. Users can only access their own tasks.
+
+Register and login request:
+
+```json
+{
+  "email": "dev@example.com",
+  "password": "a-secure-password",
+  "name": "Dev User"
+}
+```
+
+Refresh and logout request:
+
+```json
+{
+  "refreshToken": "<refreshToken from the token response>"
+}
+```
+
+Registration and login return `tokenType`, `accessToken`, `refreshToken`, `expiresIn`, and a public `user` object. Passwords are BCrypt-hashed. Random refresh tokens are stored as SHA-256 hashes, expire after seven days, and rotate on use. Access tokens expire after 15 minutes. Logout revokes refresh capability; an issued access token remains valid until its short expiration.
 
 ---
 
@@ -206,6 +259,9 @@ It includes:
 
 This file defines how the Ktor application is built and run.
 
+### ktor-backend/src/main/resources/application.yaml
+This supplies the SQLite URL and optional JWT secret from the environment. `JWT_SECRET` must be set before starting the service; `PORT` changes the default server port.
+
 ### ktor-backend/settings.gradle.kts
 This is the Gradle settings file for the Ktor module and sets the project name.
 
@@ -213,17 +269,22 @@ This is the Gradle settings file for the Ktor module and sets the project name.
 This is the main app file.
 
 It does several important things:
-- starts the Ktor server on port 8081
+- starts the Ktor server on port 8081 or the `PORT` environment variable
 - installs JSON serialization
+- configures JWT verification
 - installs request logging
 - installs status pages for errors
-- sets up routing using the task routes
+- wires public auth routes and authenticated profile/task routes
 
 The server starts with:
 
 ```kotlin
-embeddedServer(Netty, port = 8081, host = "0.0.0.0", module = Application::module)
+embeddedServer(Netty, port = port, host = "0.0.0.0", module = { module() })
 ```
+
+### Ktor auth package
+
+The `auth` package separates serializable API models, SQLite account and refresh-token persistence, BCrypt/JWT token logic, and auth routes. Refresh tokens are stored only as hashes and are consumed transactionally when rotated. Auth tables live in `auth.db`; task data remains in memory for this learning implementation.
 
 ### ktor-backend/src/main/kotlin/com/example/taskapi/Task.kt
 This file defines the task models.
@@ -235,7 +296,7 @@ It contains:
 The `@Serializable` annotation allows Kotlin objects to be converted to/from JSON automatically.
 
 ### ktor-backend/src/main/kotlin/com/example/taskapi/TaskRepository.kt
-This is the in-memory repository used by Ktor.
+This is the in-memory repository used by Ktor for tasks. It scopes operations to the authenticated user ID. Ktor account and refresh-token persistence is separate in `auth/AuthRepository.kt` and SQLite.
 
 It stores tasks in a `linkedMapOf` and exposes methods like:
 - `getAll()`
@@ -263,7 +324,15 @@ It validates input and returns clear HTTP status codes such as:
 
 ---
 
-## How to run the Spring Boot project
+## Run locally
+
+Set a strong secret before starting either backend. The value must contain at least 32 bytes and must not be committed.
+
+```bash
+export JWT_SECRET="$(openssl rand -base64 48)"
+```
+
+### Spring Boot
 
 From the project root:
 
@@ -281,7 +350,7 @@ http://localhost:8080/tasks
 
 ---
 
-## How to run the Ktor project
+### Ktor
 
 From the Ktor project folder:
 
@@ -296,6 +365,17 @@ Then open:
 ```text
 http://localhost:8081/tasks
 ```
+
+The Ktor server defaults to port `8081`; set `PORT` to override it. Spring Boot defaults to port `8080`.
+
+## Example flow
+
+1. Call `POST /auth/register` or `POST /auth/login` and retain the returned tokens.
+2. Send `Authorization: Bearer <accessToken>` on `/auth/me` and every `/tasks` request.
+3. When the access token expires, call `POST /auth/refresh` with the refresh token and replace both tokens with the rotated response.
+4. Call `POST /auth/logout` with the current refresh token when finished.
+
+Spring stores its database in `tasks.db`. Ktor stores accounts and refresh-token state in `auth.db`; Ktor task data is process-local and resets when the app restarts.
 
 ---
 
