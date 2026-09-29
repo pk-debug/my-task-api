@@ -86,7 +86,7 @@ public class AuthService {
 
     @Transactional
     public void logout(String rawToken) {
-        refreshTokens.findById(hash(rawToken)).ifPresent(RefreshToken::revoke);
+        refreshTokens.findById(hash(rawToken)).ifPresent(token -> token.revoke());
     }
 
     @Transactional(readOnly = true)
