@@ -80,7 +80,7 @@ class DemoApplicationTests {
         mockMvc.perform(post("/tasks")
                 .header("Authorization", "Bearer " + firstAccessToken)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"title\":\"private task\"}"))
+                .content("{\"title\":\"private task\",\"done\":false}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.ownerEmail").doesNotExist());
 
