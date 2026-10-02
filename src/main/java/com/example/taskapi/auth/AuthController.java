@@ -22,13 +22,33 @@ public class AuthController {
 
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public AuthModels.TokenResponse register(@Valid @RequestBody AuthModels.RegisterRequest request) {
+    public AuthModels.MessageResponse register(@Valid @RequestBody AuthModels.RegisterRequest request) {
         return authService.register(request);
     }
 
     @PostMapping("/login")
     public AuthModels.TokenResponse login(@Valid @RequestBody AuthModels.LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/verify-email")
+    public AuthModels.TokenResponse verifyEmail(@Valid @RequestBody AuthModels.VerifyEmailRequest request) {
+        return authService.verifyEmail(request.token());
+    }
+
+    @PostMapping("/forgot-password")
+    public AuthModels.MessageResponse forgotPassword(@Valid @RequestBody AuthModels.ForgotPasswordRequest request) {
+        return authService.forgotPassword(request.email());
+    }
+
+    @PostMapping("/resend-verification")
+    public AuthModels.MessageResponse resendVerification(@Valid @RequestBody AuthModels.ForgotPasswordRequest request) {
+        return authService.resendVerification(request.email());
+    }
+
+    @PostMapping("/reset-password")
+    public AuthModels.MessageResponse resetPassword(@Valid @RequestBody AuthModels.ResetPasswordRequest request) {
+        return authService.resetPassword(request);
     }
 
     @PostMapping("/refresh")

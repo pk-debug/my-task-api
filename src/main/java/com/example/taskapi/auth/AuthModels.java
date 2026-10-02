@@ -20,6 +20,20 @@ public final class AuthModels {
     public record RefreshRequest(@NotBlank String refreshToken) {
     }
 
+        public record VerifyEmailRequest(@NotBlank String token) {
+        }
+
+        public record ForgotPasswordRequest(@NotBlank @Email String email) {
+        }
+
+        public record ResetPasswordRequest(
+            @NotBlank String token,
+            @NotBlank @Size(min = 8, max = 72) String newPassword) {
+        }
+
+        public record MessageResponse(String message) {
+        }
+
     public record UserResponse(Long id, String email, String name) {
         static UserResponse from(UserAccount user) {
             return new UserResponse(user.getId(), user.getEmail(), user.getName());

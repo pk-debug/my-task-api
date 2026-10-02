@@ -24,6 +24,9 @@ public class UserAccount {
     @Column(nullable = false)
     private String passwordHash;
 
+    @Column(nullable = false, columnDefinition = "boolean not null default true")
+    private boolean emailVerified;
+
     protected UserAccount() {
     }
 
@@ -47,5 +50,17 @@ public class UserAccount {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    public void verifyEmail() {
+        this.emailVerified = true;
+    }
+
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 }

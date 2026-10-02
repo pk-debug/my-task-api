@@ -2,27 +2,39 @@ package com.example.taskapi;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.UUID;
+import com.example.taskapi.auth.AuthEmailSender;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest(properties = "app.jwt.secret=test-only-secret-which-is-long-enough-for-hmac")
 @AutoConfigureMockMvc
+@Import(DemoApplicationTests.EmailTestConfiguration.class)
 class DemoApplicationTests {
 
         @Autowired
         private MockMvc mockMvc;
+
+        @Autowired
+        private RecordingAuthEmailSender emailSender;
 
     @Test
     void contextLoads() {
@@ -69,9 +81,27 @@ class DemoApplicationTests {
         mockMvc.perform(get("/tasks")).andExpect(status().isUnauthorized());
 
         String firstEmail = "first-" + UUID.randomUUID() + "@example.com";
-        String first = register(firstEmail);
+        register(firstEmail);
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\",\"password\":\"a-secure-test-password\"}"))
+                .andExpect(status().isUnauthorized());
+
+        String firstVerificationToken = emailSender.verificationTokens.get(firstEmail);
+        mockMvc.perform(post("/auth/resend-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\"}"))
+                .andExpect(status().isOk());
+        String currentVerificationToken = emailSender.verificationTokens.get(firstEmail);
+        assertNotEquals(firstVerificationToken, currentVerificationToken);
+
+        String first = verifyEmail(currentVerificationToken);
         String firstAccessToken = jsonField(first, "accessToken");
         String firstRefreshToken = jsonField(first, "refreshToken");
+        mockMvc.perform(post("/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + firstVerificationToken + "\"}"))
+                .andExpect(status().isUnauthorized());
 
         mockMvc.perform(get("/auth/me").header("Authorization", "Bearer " + firstAccessToken))
                 .andExpect(status().isOk())
@@ -87,7 +117,8 @@ class DemoApplicationTests {
         long taskId = jsonLongField(taskResult.getResponse().getContentAsString(), "id");
 
         String secondEmail = "second-" + UUID.randomUUID() + "@example.com";
-        String second = register(secondEmail);
+        register(secondEmail);
+        String second = verifyEmail(emailSender.verificationTokens.get(secondEmail));
         mockMvc.perform(get("/tasks").header("Authorization", "Bearer " + jsonField(second, "accessToken")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(0)));
@@ -116,6 +147,48 @@ class DemoApplicationTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"" + rotatedRefreshToken + "\"}"))
                 .andExpect(status().isUnauthorized());
+
+        MvcResult loginResult = mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\",\"password\":\"a-secure-test-password\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String activeRefreshToken = jsonField(loginResult.getResponse().getContentAsString(), "refreshToken");
+
+        String forgotResponse = mockMvc.perform(post("/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        String unknownForgotResponse = mockMvc.perform(post("/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"missing@example.com\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(forgotResponse, unknownForgotResponse);
+
+        String resetToken = emailSender.resetTokens.get(firstEmail);
+        mockMvc.perform(post("/auth/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + resetToken + "\",\"newPassword\":\"a-new-secure-password\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"" + activeRefreshToken + "\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\",\"password\":\"a-secure-test-password\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + firstEmail + "\",\"password\":\"a-new-secure-password\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/auth/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"token\":\"" + resetToken + "\",\"newPassword\":\"another-secure-password\"}"))
+                .andExpect(status().isUnauthorized());
     }
 
     private String register(String email) throws Exception {
@@ -123,10 +196,19 @@ class DemoApplicationTests {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"" + email + "\",\"password\":\"a-secure-test-password\",\"name\":\"Test User\"}"))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
+                                .andExpect(jsonPath("$.message").value("Check your email for a verification token"))
                 .andReturn();
         return result.getResponse().getContentAsString();
     }
+
+        private String verifyEmail(String token) throws Exception {
+                MvcResult result = mockMvc.perform(post("/auth/verify-email")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"token\":\"" + token + "\"}"))
+                                .andExpect(status().isOk())
+                                .andReturn();
+                return result.getResponse().getContentAsString();
+        }
 
     private String jsonField(String json, String field) {
         java.util.regex.Matcher matcher = java.util.regex.Pattern
@@ -147,4 +229,28 @@ class DemoApplicationTests {
         }
         return Long.parseLong(matcher.group(1));
     }
+
+        @TestConfiguration
+        static class EmailTestConfiguration {
+                @Bean
+                @Primary
+                RecordingAuthEmailSender recordingAuthEmailSender() {
+                        return new RecordingAuthEmailSender();
+                }
+        }
+
+        static class RecordingAuthEmailSender implements AuthEmailSender {
+                private final Map<String, String> verificationTokens = new ConcurrentHashMap<>();
+                private final Map<String, String> resetTokens = new ConcurrentHashMap<>();
+
+                @Override
+                public void sendVerification(String email, String token, String endpoint) {
+                        verificationTokens.put(email, token);
+                }
+
+                @Override
+                public void sendPasswordReset(String email, String token, String endpoint) {
+                        resetTokens.put(email, token);
+                }
+        }
 }

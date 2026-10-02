@@ -11,4 +11,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Stri
 	@Query("update RefreshToken token set token.revoked = true "
 			+ "where token.tokenHash = :tokenHash and token.revoked = false and token.expiresAt > :now")
 	int revokeIfActive(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
+
+	@Modifying
+	@Query("update RefreshToken token set token.revoked = true where token.userId = :userId and token.revoked = false")
+	int revokeAllForUser(@Param("userId") Long userId);
 }
