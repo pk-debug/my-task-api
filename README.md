@@ -1,47 +1,83 @@
 # Task API Project
 
-This project is a backend-focused task management application built in two versions:
+A backend-focused task management API built in two implementations:
 
-- Java Spring Boot backend
-- Kotlin Ktor backend
+- Java Spring Boot
+- Kotlin Ktor
 
-The goal is to demonstrate the same backend domain in a classic Spring Boot style and a Kotlin Ktor style. Both APIs provide account registration and login, signed access tokens, rotating refresh tokens, and authenticated task CRUD. Spring persists users, refresh tokens, and tasks in SQLite; Ktor persists auth data in SQLite and currently keeps tasks in memory.
-
-This project is useful for interview preparation, backend learning, and showing a clear understanding of API design, database integration, and project structure.
+The project demonstrates the same business domain in two common backend styles: a classic enterprise MVC + JPA stack and a lightweight, route-based Kotlin server. The goal is to showcase API design, authentication, database access, JWT handling, task ownership rules, and clean project structure for interviews and learning.
 
 ---
 
-## What this project does
+## Why this project exists
 
-The application exposes a task API for managing daily tasks.
+This repository is designed to answer a common backend interview question:
 
-Features:
-- Create a task
-- Read all tasks
-- Read one task by ID
-- Update a task
-- Delete a task
-- Validate task title input
-- Register and log in with an email and password
-- Hash passwords with BCrypt
-- Issue short-lived JWT access tokens and rotating refresh tokens
-- Revoke refresh tokens on logout
-- Protect task endpoints and scope tasks to the authenticated account
-- Persist auth data in SQLite
+"Can you build the same API with more than one framework and explain the differences in architecture?"
 
-Main endpoints:
-- POST /auth/register
-- POST /auth/login
-- POST /auth/refresh
-- POST /auth/logout
-- GET /auth/me
-- GET /tasks
-- GET /tasks/{id}
-- POST /tasks
-- PUT /tasks/{id}
-- DELETE /tasks/{id}
+It includes:
 
-Example task JSON:
+- task CRUD APIs
+- email + password authentication
+- JWT access tokens
+- rotating refresh tokens
+- user-scoped task access
+- SQLite persistence
+- verification and password reset workflows
+- a lightweight clean layered structure
+
+---
+
+## Core features
+
+- Create, read, update, and delete tasks
+- Validate task payloads and business rules
+- Register a new account
+- Log in with email and password
+- Require email verification before full account use
+- Send password reset links with one-time tokens
+- Issue short-lived access tokens and rotating refresh tokens
+- Revoke refresh tokens on logout or reset
+- Restrict task access to the authenticated owner
+- Store auth data in SQLite
+
+---
+
+## API summary
+
+| Method | Endpoint | Purpose | Auth |
+| --- | --- | --- | --- |
+| POST | /auth/register | Create an account | No |
+| POST | /auth/login | Log in | No |
+| POST | /auth/verify-email | Confirm email with one-time token | No |
+| POST | /auth/resend-verification | Re-send verification token | No |
+| POST | /auth/forgot-password | Request reset email | No |
+| POST | /auth/reset-password | Change password using reset token | No |
+| POST | /auth/refresh | Rotate refresh token | No |
+| POST | /auth/logout | Revoke refresh token | No |
+| GET | /auth/me | Fetch authenticated user profile | Yes |
+| GET | /tasks | List current user tasks | Yes |
+| GET | /tasks/{id} | Fetch one task by ID | Yes |
+| POST | /tasks | Create a task | Yes |
+| PUT | /tasks/{id} | Update a task | Yes |
+| DELETE | /tasks/{id} | Delete a task | Yes |
+
+Example request bodies:
+
+```json
+{
+  "email": "dev@example.com",
+  "password": "a-secure-password",
+  "name": "Dev User"
+}
+```
+
+```json
+{
+  "email": "dev@example.com",
+  "password": "a-secure-password"
+}
+```
 
 ```json
 {
@@ -52,51 +88,46 @@ Example task JSON:
 
 ---
 
-## Why two backends?
+## Architecture choice
 
-This repository includes both:
+This project follows a thin layered backend style instead of MVVM:
 
-1. Spring Boot Java version
-   - Great for enterprise-style backend applications
-   - Uses Spring MVC, JPA, and repository pattern
-   - Common in many production environments
+- HTTP layer: controllers/routes
+- Application layer: auth and task services
+- Domain layer: task/user models and validation rules
+- Persistence layer: repositories + SQLite/JPA
+- Security layer: JWT verification and bearer-auth enforcement
 
-2. Ktor Kotlin version
-   - Great for modern Kotlin server apps
-   - Lightweight and clean route-based architecture
-   - Good for showing Kotlin backend skills in interviews
-
-Both versions solve the same problem: manage tasks through API endpoints.
+This is closer to a clean backend architecture than MVVM, which is primarily a UI pattern. It keeps responsibilities separated without over-engineering a small service.
 
 ---
 
 ## Tech stack
 
-### Java Spring Boot version
+### Spring Boot version
 - Java 17
 - Spring Boot 4.1.0
 - Maven
-- Spring Web
-- Spring Security and OAuth2 Resource Server JWT
+- Spring Web MVC
+- Spring Security
 - Spring Data JPA
 - Hibernate
 - SQLite JDBC
-- Jakarta Validation
+- JWT resource server support
 
-### Kotlin Ktor version
+### Ktor version
 - Kotlin
 - Ktor 3.0.1
 - Kotlin Serialization
 - Gradle
-- Netty server engine
+- Netty
 - SQLite JDBC
-- Ktor JWT authentication
 - BCrypt password hashing
-- Call logging and status pages
+- JWT auth using Ktor auth JWT
 
 ---
 
-## Project structure
+## Repository structure
 
 ```text
 my-task-api/
@@ -114,193 +145,140 @@ my-task-api/
 │       │       ├── TaskController.java
 │       │       ├── TaskService.java
 │       │       ├── TaskRepository.java
-│       │       ├── auth/ (account and token controller, service, models, entities, repositories)
-│       │       └── config/SecurityConfig.java
+│       │       ├── auth/
+│       │       └── config/
 │       └── resources/
 │           └── application.properties
 ├── target/
 ├── tasks.db
-└── ktor-backend/
-    ├── build.gradle.kts
-    ├── settings.gradle.kts
-    └── src/
-        └── main/
-            └── kotlin/
-                └── com/example/taskapi/
-                    ├── Application.kt
-                    ├── Task.kt
-                    ├── TaskRepository.kt
-                    └── TaskRoutes.kt
+├── ktor-backend/
+│   ├── build.gradle.kts
+│   ├── settings.gradle.kts
+│   └── src/
+│       └── main/
+│           └── kotlin/
+│               └── com/example/taskapi/
+│                   ├── Application.kt
+│                   ├── Task.kt
+│                   ├── TaskRepository.kt
+│                   ├── TaskRoutes.kt
+│                   └── auth/
+└── src/test/java/com/example/taskapi/DemoApplicationTests.java
 ```
 
 ---
 
-## Spring Boot project details
+## Quick start
 
-### pom.xml
-This is the Maven build file. It tells the project:
-- which dependencies to download
-- which Java version to compile with
-- how the app should be packaged and run
+### 1) Spring Boot
 
-Important dependencies include:
-- spring-boot-starter-web for HTTP endpoints
-- spring-boot-starter-security and spring-boot-starter-oauth2-resource-server for JWT protection
-- spring-boot-starter-data-jpa for database access
-- spring-boot-starter-validation for request validation
-- sqlite-jdbc for SQLite connectivity
+From the project root:
 
-### src/main/resources/application.properties
-This file contains the app configuration.
-
-Key values:
-- `spring.datasource.url=jdbc:sqlite:tasks.db` → points to the SQLite database file
-- `spring.jpa.hibernate.ddl-auto=update` → creates tables automatically if missing
-- `spring.jpa.show-sql=true` → prints SQL in the console for learning/debugging
-
-### src/main/java/com/example/taskapi/HireSpringBootApplication.java
-This is the main Spring Boot entry point.
-
-It starts the app with:
-
-```java
-SpringApplication.run(HireSpringBootApplication.class, args);
+```bash
+./mvnw spring-boot:run
 ```
 
-This is the class that launches the Java backend.
+Required environment variables:
 
-### src/main/java/com/example/taskapi/Task.java
-This is the task entity.
-
-It maps to the database table named `tasks` and contains:
-- `id` as primary key
-- `title` as task text
-- `done` as completion status
-
-Important annotations:
-- `@Entity` → marks it as a JPA entity
-- `@Table(name = "tasks")` → maps it to a database table
-- `@NotBlank` → prevents empty title values
-
-### src/main/java/com/example/taskapi/TaskRepository.java
-This repository layer handles database access.
-
-It extends `JpaRepository<Task, Long>`, which gives built-in methods like:
-- `findAll()`
-- `findById()`
-- `save()`
-- `deleteById()`
-
-This removes the need to write raw SQL manually.
-
-### src/main/java/com/example/taskapi/TaskController.java
-This is the REST controller that exposes the API endpoints.
-
-It contains:
-- GET /tasks → fetch all tasks
-- GET /tasks/{id} → fetch one task by ID
-- POST /tasks → create a task
-- PUT /tasks/{id} → update task
-- DELETE /tasks/{id} → delete task
-
-The controller receives HTTP requests, reads the authenticated account from the JWT, and delegates business operations to `TaskService`. Tasks are only returned or modified for their owner.
-
-### Authentication architecture
-
-The Spring `auth` package separates the HTTP controller, request/response models, auth service, user and refresh-token entities, and repositories. `SecurityConfig` verifies bearer JWTs and keeps the API stateless. `TaskService` separates task business operations from the web controller and persistence layer.
-
-### Authentication endpoints
-
-| Method | Endpoint | Purpose | Auth required |
-| --- | --- | --- | --- |
-| POST | `/auth/register` | Create an account and return tokens | No |
-| POST | `/auth/login` | Verify credentials and return tokens | No |
-| POST | `/auth/refresh` | Rotate a refresh token and return a new token pair | No |
-| POST | `/auth/logout` | Revoke a refresh token | No |
-| GET | `/auth/me` | Return the authenticated account profile | Yes |
-
-Every `/tasks` route requires `Authorization: Bearer <accessToken>`. Users can only access their own tasks.
-
-Registration request:
-
-```json
-{
-  "email": "dev@example.com",
-  "password": "a-secure-password",
-  "name": "Dev User"
-}
+```bash
+export JWT_SECRET="replace-with-a-random-32-byte-secret"
 ```
 
-Login request:
+Optional mail settings for real SMTP delivery:
 
-```json
-{
-  "email": "dev@example.com",
-  "password": "a-secure-password"
-}
+```bash
+export MAIL_HOST="smtp.gmail.com"
+export MAIL_PORT="587"
+export MAIL_USERNAME="you@example.com"
+export MAIL_PASSWORD="your-password"
+export MAIL_FROM="no-reply@example.com"
+export APP_PUBLIC_BASE_URL="http://localhost:8080"
 ```
 
-Refresh and logout request:
+If `MAIL_HOST` is not set, the app falls back to a console-style development email sender.
 
-```json
-{
-  "refreshToken": "<refreshToken from the token response>"
-}
+### 2) Ktor
+
+From the Ktor module:
+
+```bash
+cd ktor-backend
+export JWT_SECRET="replace-with-a-random-32-byte-secret"
+export APP_PUBLIC_BASE_URL="http://localhost:8081"
+gradle run
 ```
 
-Registration and login return `tokenType`, `accessToken`, `refreshToken`, `expiresIn`, and a public `user` object. Passwords are BCrypt-hashed. Random refresh tokens are stored as SHA-256 hashes, expire after seven days, and rotate on use. Access tokens expire after 15 minutes. Logout revokes refresh capability; an issued access token remains valid until its short expiration.
+Optional mail settings:
+
+```bash
+export MAIL_HOST="smtp.gmail.com"
+export MAIL_PORT="587"
+export MAIL_USERNAME="you@example.com"
+export MAIL_PASSWORD="your-password"
+export MAIL_FROM="no-reply@example.com"
+```
 
 ---
 
-## Ktor project details
+## Security and auth model
 
-### ktor-backend/build.gradle.kts
-This is the Gradle build file for the Kotlin Ktor app.
+The auth flow is intentionally simple but production-aware:
 
-It includes:
-- Kotlin JVM plugin
-- Kotlin serialization plugin
-- Ktor server dependencies
-- Netty server engine
-- JSON serialization support
-- logging plugins
-- test dependencies
+- password hashing via BCrypt
+- JWT access tokens with a short lifetime
+- refresh tokens stored as hashes
+- refresh-token rotation on use
+- logout revocation
+- email verification before full login access
+- password reset tokens with expiry and one-time use
+- user ownership checks for all task operations
 
-This file defines how the Ktor application is built and run.
+Important rule:
 
-### ktor-backend/src/main/resources/application.yaml
-This supplies the SQLite URL and optional JWT secret from the environment. `JWT_SECRET` must be set before starting the service; `PORT` changes the default server port.
+- a user can only access tasks they own
+- failed or stale refresh tokens return 401 Unauthorized
+- verifying or resetting an account invalidates old one-time action tokens
 
-### ktor-backend/settings.gradle.kts
-This is the Gradle settings file for the Ktor module and sets the project name.
+---
 
-### ktor-backend/src/main/kotlin/com/example/taskapi/Application.kt
-This is the main app file.
+## Why two implementations matter
 
-It does several important things:
-- starts the Ktor server on port 8081 or the `PORT` environment variable
-- installs JSON serialization
-- configures JWT verification
-- installs request logging
-- installs status pages for errors
-- wires public auth routes and authenticated profile/task routes
+This project is useful for discussing real backend trade-offs:
 
-The server starts with:
+- Spring Boot is great for enterprise apps, convention-heavy structure, dependency injection, and a mature ecosystem.
+- Ktor is great for Kotlin-first, lightweight, expressive server-side apps with route-based architecture.
 
-```kotlin
-embeddedServer(Netty, port = port, host = "0.0.0.0", module = { module() })
-```
+The business logic remains similar, but the project structure and server style differ significantly.
 
-### Ktor auth package
+---
 
-The `auth` package separates serializable API models, SQLite account and refresh-token persistence, BCrypt/JWT token logic, and auth routes. Refresh tokens are stored only as hashes and are consumed transactionally when rotated. Auth tables live in `auth.db`; task data remains in memory for this learning implementation.
+## Validation status
 
-### ktor-backend/src/main/kotlin/com/example/taskapi/Task.kt
-This file defines the task models.
+The project has been verified with real test runs:
 
-It contains:
-- `Task` data class
-- `TaskRequest` data class
+- Spring Boot test suite passes
+- Ktor test suite passes
+
+This makes it a solid example for backend interviews, portfolio work, or learning architecture trade-offs.
+
+---
+
+## Recommended next upgrades
+
+If you want to continue beyond this project, the most valuable production-ready additions are:
+
+1. Role-based authorization (admin/user)
+2. SQL-backed task persistence in the Ktor backend
+3. Rate limiting and request throttling
+4. Structured logging and metrics
+5. Docker + PostgreSQL setup
+6. CI pipeline and deployment config
+
+---
+
+## Final note
+
+This project is intentionally not just a CRUD app; it demonstrates how a backend should handle auth, token lifecycle, ownership boundaries, and system design choices. That makes it useful both as a learning project and as a portfolio item.
 
 The `@Serializable` annotation allows Kotlin objects to be converted to/from JSON automatically.
 
