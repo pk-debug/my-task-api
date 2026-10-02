@@ -13,11 +13,6 @@ import java.util.Locale
 
 class AuthException(val statusCode: Int, override val message: String) : RuntimeException(message)
 
-interface AuthEmailSender {
-    fun sendVerification(email: String, token: String, endpoint: String)
-    fun sendPasswordReset(email: String, token: String, endpoint: String)
-}
-
 class AuthService(
     private val repository: AuthRepository,
     secret: String,
