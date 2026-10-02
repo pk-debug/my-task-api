@@ -9,13 +9,21 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.util.Base64
 import java.util.Date
+import java.util.Locale
 
 class AuthException(val statusCode: Int, override val message: String) : RuntimeException(message)
+
+interface AuthEmailSender {
+    fun sendVerification(email: String, token: String, endpoint: String)
+    fun sendPasswordReset(email: String, token: String, endpoint: String)
+}
 
 class AuthService(
     private val repository: AuthRepository,
     secret: String,
-    private val issuer: String = "task-api"
+    private val issuer: String = "task-api",
+    private val emailSender: AuthEmailSender = ConsoleAuthEmailSender(),
+    private val publicBaseUrl: String = "http://localhost:8081"
 ) {
     private val accessTtlSeconds = 15 * 60L
     private val refreshTtlMillis = 7 * 24 * 60 * 60 * 1000L
@@ -26,7 +34,7 @@ class AuthService(
         require(secret.toByteArray(Charsets.UTF_8).size >= 32) { "JWT_SECRET must contain at least 32 bytes" }
     }
 
-    fun register(request: RegisterRequest): TokenResponse {
+    fun register(request: RegisterRequest): MessageResponse {
         val email = normalizeEmail(request.email)
         validateCredentials(email, request.password)
         if (request.name.isBlank() || request.name.trim().length > 80) {
@@ -36,16 +44,56 @@ class AuthService(
             throw AuthException(409, "An account with this email already exists")
         }
         val user = repository.createUser(email, request.name.trim(), BCrypt.hashpw(request.password, BCrypt.gensalt(12)))
-        return issueTokens(user)
+        sendActionToken(user, "EMAIL_VERIFICATION", 24 * 60 * 60 * 1000L) { token ->
+            emailSender.sendVerification(user.email, token, "$publicBaseUrl/auth/verify-email")
+        }
+        return MessageResponse("Check your email for a verification token")
     }
 
     fun login(request: LoginRequest): TokenResponse {
         val email = normalizeEmail(request.email)
         val user = repository.findUserByEmail(email)
-        if (user == null || request.password.isEmpty() || !BCrypt.checkpw(request.password, user.passwordHash)) {
+        if (user == null || !user.emailVerified || request.password.isEmpty() || !BCrypt.checkpw(request.password, user.passwordHash)) {
             throw AuthException(401, "Invalid email or password")
         }
         return issueTokens(user)
+    }
+
+    fun verifyEmail(rawToken: String): TokenResponse {
+        if (rawToken.isBlank()) throw AuthException(401, "Invalid verification token")
+        val user = repository.verifyEmailWithToken(hash(rawToken), System.currentTimeMillis())
+            ?: throw AuthException(401, "Invalid or expired verification token")
+        return issueTokens(user)
+    }
+
+    fun resendVerification(emailAddress: String): MessageResponse {
+        repository.findUserByEmail(normalizeEmail(emailAddress))
+            ?.takeIf { !it.emailVerified }
+            ?.let { user ->
+                sendActionToken(user, "EMAIL_VERIFICATION", 24 * 60 * 60 * 1000L) { token ->
+                    emailSender.sendVerification(user.email, token, "$publicBaseUrl/auth/verify-email")
+                }
+            }
+        return MessageResponse("If the account needs verification, a verification message has been sent")
+    }
+
+    fun forgotPassword(emailAddress: String): MessageResponse {
+        repository.findUserByEmail(normalizeEmail(emailAddress))
+            ?.takeIf { it.emailVerified }
+            ?.let { user ->
+                sendActionToken(user, "PASSWORD_RESET", 60 * 60 * 1000L) { token ->
+                    emailSender.sendPasswordReset(user.email, token, "$publicBaseUrl/auth/reset-password")
+                }
+            }
+        return MessageResponse("If the account is verified, a password reset message has been sent")
+    }
+
+    fun resetPassword(request: ResetPasswordRequest): MessageResponse {
+        validateNewPassword(request.newPassword)
+        if (!repository.resetPasswordWithToken(hash(request.token), System.currentTimeMillis(), BCrypt.hashpw(request.newPassword, BCrypt.gensalt(12)))) {
+            throw AuthException(401, "Invalid or expired password reset token")
+        }
+        return MessageResponse("Password updated; log in again with the new password")
     }
 
     fun refresh(rawToken: String): TokenResponse {
@@ -80,16 +128,26 @@ class AuthService(
         return TokenResponse("Bearer", accessToken, refreshToken, accessTtlSeconds, user.toResponse())
     }
 
+    private fun sendActionToken(user: AuthUser, purpose: String, ttlMillis: Long, deliver: (String) -> Unit) {
+        val rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(SecureRandom()::nextBytes))
+        repository.createActionToken(hash(rawToken), user.id, purpose, System.currentTimeMillis() + ttlMillis)
+        deliver(rawToken)
+    }
+
     private fun validateCredentials(email: String, password: String) {
         if (!email.matches(Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) || email.length > 254) {
             throw AuthException(400, "A valid email address is required")
         }
+        validateNewPassword(password)
+    }
+
+    private fun validateNewPassword(password: String) {
         if (password.length < 8 || password.toByteArray(Charsets.UTF_8).size > 72) {
             throw AuthException(400, "Password must be at least 8 characters and at most 72 bytes")
         }
     }
 
-    private fun normalizeEmail(email: String) = email.trim().lowercase()
+    private fun normalizeEmail(email: String) = email.trim().lowercase(Locale.ROOT)
 
     private fun hash(value: String) = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8))

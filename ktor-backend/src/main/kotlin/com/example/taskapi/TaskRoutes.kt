@@ -13,11 +13,11 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 
-fun Route.taskRoutes(repository: TaskRepository) {
+fun Route.taskRoutes(service: TaskService) {
     route("/tasks") {
         get {
             val ownerId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
-            call.respond(repository.getAll(ownerId))
+            call.respond(service.getAll(ownerId))
         }
 
         get("/{id}") {
@@ -25,7 +25,7 @@ fun Route.taskRoutes(repository: TaskRepository) {
                 ?: return@get call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid id"))
             val ownerId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
 
-            val task = repository.getById(id, ownerId)
+            val task = service.getById(id, ownerId)
             if (task == null) {
                 call.respond(HttpStatusCode.NotFound, mapOf("error" to "Task not found"))
             } else {
@@ -41,7 +41,7 @@ fun Route.taskRoutes(repository: TaskRepository) {
                 return@post
             }
 
-            val createdTask = repository.create(request, ownerId)
+            val createdTask = service.create(request, ownerId)
             call.respond(HttpStatusCode.Created, createdTask)
         }
 
@@ -56,7 +56,7 @@ fun Route.taskRoutes(repository: TaskRepository) {
                 return@put
             }
 
-            val updatedTask = repository.update(id, request, ownerId)
+            val updatedTask = service.update(id, request, ownerId)
             if (updatedTask == null) {
                 call.respond(HttpStatusCode.NotFound, mapOf("error" to "Task not found"))
             } else {
@@ -69,7 +69,7 @@ fun Route.taskRoutes(repository: TaskRepository) {
                 ?: return@delete call.respond(HttpStatusCode.BadRequest, mapOf("error" to "Invalid id"))
             val ownerId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
 
-            val deleted = repository.delete(id, ownerId)
+            val deleted = service.delete(id, ownerId)
             if (deleted) {
                 call.respond(HttpStatusCode.NoContent)
             } else {

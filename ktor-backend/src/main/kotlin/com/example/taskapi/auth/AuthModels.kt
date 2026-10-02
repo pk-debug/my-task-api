@@ -20,11 +20,24 @@ data class RefreshRequest(
     val refreshToken: String
 )
 
+@Serializable
+data class VerifyEmailRequest(val token: String)
+
+@Serializable
+data class EmailRequest(val email: String)
+
+@Serializable
+data class ResetPasswordRequest(val token: String, val newPassword: String)
+
+@Serializable
+data class MessageResponse(val message: String)
+
 data class AuthUser(
     val id: Long,
     val email: String,
     val name: String,
-    val passwordHash: String
+    val passwordHash: String,
+    val emailVerified: Boolean
 )
 
 @Serializable

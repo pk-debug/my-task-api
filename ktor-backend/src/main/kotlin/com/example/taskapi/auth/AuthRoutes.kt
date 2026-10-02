@@ -18,6 +18,22 @@ fun Route.authRoutes(authService: AuthService) {
             call.respond(authService.login(call.receive<LoginRequest>()))
         }
 
+        post("/verify-email") {
+            call.respond(authService.verifyEmail(call.receive<VerifyEmailRequest>().token))
+        }
+
+        post("/resend-verification") {
+            call.respond(authService.resendVerification(call.receive<EmailRequest>().email))
+        }
+
+        post("/forgot-password") {
+            call.respond(authService.forgotPassword(call.receive<EmailRequest>().email))
+        }
+
+        post("/reset-password") {
+            call.respond(authService.resetPassword(call.receive<ResetPasswordRequest>()))
+        }
+
         post("/refresh") {
             call.respond(authService.refresh(call.receive<RefreshRequest>().refreshToken))
         }

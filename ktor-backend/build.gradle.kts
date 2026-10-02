@@ -30,6 +30,7 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-jdbc:0.58.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     implementation("org.mindrot:jbcrypt:0.4")
+    implementation("org.eclipse.angus:angus-mail:2.0.3")
     implementation("ch.qos.logback:logback-classic:1.5.7")
 
     testImplementation(kotlin("test"))
