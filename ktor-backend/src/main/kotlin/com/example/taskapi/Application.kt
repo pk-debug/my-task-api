@@ -28,8 +28,10 @@ import com.example.taskapi.auth.AuthService
 import com.example.taskapi.auth.ConsoleAuthEmailSender
 import com.example.taskapi.auth.SmtpAuthEmailSender
 import com.example.taskapi.auth.authRoutes
+import com.example.taskapi.api.healthRoutes
 import kotlinx.serialization.json.Json
 import org.slf4j.event.Level
+import java.time.Instant
 
 fun main() {
     val port = System.getenv("PORT")?.toIntOrNull() ?: 8081
@@ -66,6 +68,7 @@ fun Application.module(jwtSecret: String, jdbcUrl: String) {
 }
 
 fun Application.module(jwtSecret: String, jdbcUrl: String, emailSender: AuthEmailSender, publicBaseUrl: String) {
+    val applicationStartedAt = Instant.now()
     val authRepository = AuthRepository(jdbcUrl)
     val authService = AuthService(authRepository, jwtSecret, emailSender = emailSender, publicBaseUrl = publicBaseUrl)
     monitor.subscribe(ApplicationStopped) { authRepository.close() }
@@ -114,6 +117,7 @@ fun Application.module(jwtSecret: String, jdbcUrl: String, emailSender: AuthEmai
     val taskService = TaskService(TaskRepository())
     routing {
         authRoutes(authService)
+        healthRoutes(applicationStartedAt)
         authenticate("auth-jwt") {
             get("/auth/me") {
                 val userId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
