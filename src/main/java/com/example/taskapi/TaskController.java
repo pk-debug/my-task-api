@@ -2,6 +2,7 @@ package com.example.taskapi;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import com.example.taskapi.api.PageResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,6 +30,24 @@ public class TaskController {
     @GetMapping
     public List<Task> getAllTasks(@AuthenticationPrincipal Jwt jwt) {
         return taskService.getAll(jwt.getClaimAsString("email"));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<PageResponse<Task>> searchTasks(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Task.TaskStatus taskStatus = null;
+        if (status != null && !status.isBlank()) {
+            try {
+                taskStatus = Task.TaskStatus.valueOf(status.trim().toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException exception) {
+                return ResponseEntity.badRequest().build();
+            }
+        }
+        return ResponseEntity.ok(taskService.search(jwt.getClaimAsString("email"), q, taskStatus, page, size));
     }
 
     @GetMapping("/{id}")

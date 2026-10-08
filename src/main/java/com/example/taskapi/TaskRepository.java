@@ -1,6 +1,10 @@
 package com.example.taskapi;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /**
  * TaskRepository.java
@@ -35,4 +39,14 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     java.util.List<Task> findAllByOwnerEmail(String ownerEmail);
 
     java.util.Optional<Task> findByIdAndOwnerEmail(Long id, String ownerEmail);
+
+        @Query("select task from Task task where task.ownerEmail = :ownerEmail "
+            + "and (:query is null or lower(task.title) like lower(concat('%', :query, '%')) "
+            + "or lower(task.description) like lower(concat('%', :query, '%'))) "
+            + "and (:status is null or task.status = :status)")
+        Page<Task> searchOwnedTasks(
+            @Param("ownerEmail") String ownerEmail,
+            @Param("query") String query,
+            @Param("status") Task.TaskStatus status,
+            Pageable pageable);
 }

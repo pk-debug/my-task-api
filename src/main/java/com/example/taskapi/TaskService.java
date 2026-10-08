@@ -2,8 +2,13 @@ package com.example.taskapi;
 
 import java.util.List;
 import java.util.Optional;
+import com.example.taskapi.api.PageResponse;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class TaskService {
@@ -21,6 +26,19 @@ public class TaskService {
     @Transactional(readOnly = true)
     public Optional<Task> getById(Long id, String ownerEmail) {
         return taskRepository.findByIdAndOwnerEmail(id, ownerEmail);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Task> search(String ownerEmail, String query, Task.TaskStatus status, int page, int size) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 0 and size must be between 1 and 100");
+        }
+        String normalizedQuery = query == null || query.isBlank() ? null : query.trim();
+        return PageResponse.from(taskRepository.searchOwnedTasks(
+                ownerEmail,
+                normalizedQuery,
+                status,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.ASC, "id"))));
     }
 
     @Transactional

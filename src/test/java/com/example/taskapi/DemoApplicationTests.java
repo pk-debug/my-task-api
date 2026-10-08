@@ -25,7 +25,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-@SpringBootTest(properties = "app.jwt.secret=test-only-secret-which-is-long-enough-for-hmac")
+@SpringBootTest(properties = {
+        "app.jwt.secret=test-only-secret-which-is-long-enough-for-hmac",
+        "spring.datasource.url=jdbc:sqlite::memory:"
+})
 @AutoConfigureMockMvc
 @Import(DemoApplicationTests.EmailTestConfiguration.class)
 class DemoApplicationTests {
@@ -78,7 +81,12 @@ class DemoApplicationTests {
 
     @Test
     void authFlowProtectsAndScopesTasks() throws Exception {
+        mockMvc.perform(get("/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.application").value("task-api"));
         mockMvc.perform(get("/tasks")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/tasks/search")).andExpect(status().isUnauthorized());
 
         String firstEmail = "first-" + UUID.randomUUID() + "@example.com";
         register(firstEmail);
@@ -116,6 +124,45 @@ class DemoApplicationTests {
                 .andReturn();
         long taskId = jsonLongField(taskResult.getResponse().getContentAsString(), "id");
 
+        mockMvc.perform(post("/tasks")
+                .header("Authorization", "Bearer " + firstAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"title\":\"planning checklist\",\"done\":false,\"status\":\"IN_PROGRESS\"}"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/tasks/search")
+                .param("page", "0")
+                .param("size", "1")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()", org.hamcrest.Matchers.is(1)))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(2));
+        mockMvc.perform(get("/tasks/search")
+                .param("q", "private")
+                .param("status", "TODO")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("private task"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+        mockMvc.perform(get("/tasks/search")
+                .param("status", "IN_PROGRESS")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].title").value("planning checklist"));
+        mockMvc.perform(get("/tasks/search")
+                .param("size", "101")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/tasks/search")
+                .param("page", "-1")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/tasks/search")
+                .param("status", "UNKNOWN")
+                .header("Authorization", "Bearer " + firstAccessToken))
+                .andExpect(status().isBadRequest());
+
         String secondEmail = "second-" + UUID.randomUUID() + "@example.com";
         register(secondEmail);
         String second = verifyEmail(emailSender.verificationTokens.get(secondEmail));
@@ -125,6 +172,11 @@ class DemoApplicationTests {
         mockMvc.perform(get("/tasks/{id}", taskId)
                 .header("Authorization", "Bearer " + jsonField(second, "accessToken")))
                 .andExpect(status().isNotFound());
+        mockMvc.perform(get("/tasks/search")
+                .header("Authorization", "Bearer " + jsonField(second, "accessToken")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()", org.hamcrest.Matchers.is(0)))
+                .andExpect(jsonPath("$.totalElements").value(0));
 
         MvcResult refreshResult = mockMvc.perform(post("/auth/refresh")
                 .contentType(MediaType.APPLICATION_JSON)
