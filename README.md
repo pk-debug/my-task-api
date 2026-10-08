@@ -56,11 +56,27 @@ It includes:
 | POST | /auth/refresh | Rotate refresh token | No |
 | POST | /auth/logout | Revoke refresh token | No |
 | GET | /auth/me | Fetch authenticated user profile | Yes |
+| GET | /health | Service status, timestamp, and uptime | No |
 | GET | /tasks | List current user tasks | Yes |
+| GET | /tasks/search | Search and paginate current user tasks | Yes |
 | GET | /tasks/{id} | Fetch one task by ID | Yes |
 | POST | /tasks | Create a task | Yes |
 | PUT | /tasks/{id} | Update a task | Yes |
 | DELETE | /tasks/{id} | Delete a task | Yes |
+
+`GET /tasks/search` supports `q` (title/description text), `status`, zero-based `page` (default `0`), and `size` (default `20`, maximum `100`). It returns the same envelope in both implementations:
+
+```json
+{
+  "items": [],
+  "page": 0,
+  "size": 20,
+  "totalElements": 0,
+  "totalPages": 0
+}
+```
+
+Example: `/tasks/search?q=planning&status=IN_PROGRESS&page=0&size=10`. The existing `GET /tasks` endpoint remains a plain list for compatibility. Search is authenticated and scoped to the current user.
 
 Example request bodies:
 
@@ -97,6 +113,7 @@ This project follows a thin layered backend style instead of MVVM:
 - Domain layer: task/user models and validation rules
 - Persistence layer: repositories + SQLite/JPA
 - Security layer: JWT verification and bearer-auth enforcement
+- Shared API contracts: health and page response models in each backend's `api` package
 
 This is closer to a clean backend architecture than MVVM, which is primarily a UI pattern. It keeps responsibilities separated without over-engineering a small service.
 
@@ -145,6 +162,7 @@ my-task-api/
 │       │       ├── TaskController.java
 │       │       ├── TaskService.java
 │       │       ├── TaskRepository.java
+│       │       ├── api/ (health controller and common response DTOs)
 │       │       ├── auth/
 │       │       └── config/
 │       └── resources/
@@ -161,7 +179,9 @@ my-task-api/
 │                   ├── Application.kt
 │                   ├── Task.kt
 │                   ├── TaskRepository.kt
+│                   ├── TaskService.kt
 │                   ├── TaskRoutes.kt
+│                   ├── api/ (health route and common response DTOs)
 │                   └── auth/
 └── src/test/java/com/example/taskapi/DemoApplicationTests.java
 ```
@@ -299,6 +319,7 @@ This file defines the route logic.
 
 It handles:
 - GET /tasks
+- GET /tasks/search → owner-scoped text/status filtering with pagination
 - GET /tasks/{id}
 - POST /tasks
 - PUT /tasks/{id}
@@ -308,6 +329,7 @@ It validates input and returns clear HTTP status codes such as:
 - 400 Bad Request for invalid or empty titles
 - 404 Not Found for missing tasks
 - 201 Created for successful creation
+- 400 Bad Request for invalid search filters or pagination
 
 ---
 
@@ -372,6 +394,19 @@ Spring stores its database in `tasks.db`. Ktor stores accounts and refresh-token
 
 ```bash
 curl http://localhost:8080/tasks
+```
+
+### Check service health
+
+```bash
+curl http://localhost:8080/health
+```
+
+### Search and paginate tasks
+
+```bash
+curl "http://localhost:8080/tasks/search?q=planning&status=IN_PROGRESS&page=0&size=10" \
+  -H "Authorization: Bearer <accessToken>"
 ```
 
 ### Create a task
