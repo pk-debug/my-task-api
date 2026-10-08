@@ -12,9 +12,31 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
+import com.example.taskapi.auth.ApiError
 
 fun Route.taskRoutes(service: TaskService) {
     route("/tasks") {
+        get("/search") {
+            val ownerId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
+            val query = call.request.queryParameters["q"]
+            val rawStatus = call.request.queryParameters["status"]
+            val status = rawStatus?.takeIf { it.isNotBlank() }?.let { value ->
+                TaskStatus.entries.firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, ApiError("Invalid task status"))
+            }
+            val pageParameter = call.request.queryParameters["page"]
+            val page = if (pageParameter == null) 0 else pageParameter.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ApiError("page must be an integer"))
+            val sizeParameter = call.request.queryParameters["size"]
+            val size = if (sizeParameter == null) 20 else sizeParameter.toIntOrNull()
+                ?: return@get call.respond(HttpStatusCode.BadRequest, ApiError("size must be an integer"))
+            try {
+                call.respond(service.search(ownerId, query, status, page, size))
+            } catch (exception: InvalidTaskSearchException) {
+                call.respond(HttpStatusCode.BadRequest, ApiError(exception.message ?: "Invalid pagination"))
+            }
+        }
+
         get {
             val ownerId = call.principal<JWTPrincipal>()!!.payload.subject.toLong()
             call.respond(service.getAll(ownerId))

@@ -27,7 +27,12 @@ class TaskRoutesTest {
     fun `task routes require a bearer token`() = testApplication {
         application { module(TEST_SECRET, "jdbc:sqlite::memory:", RecordingAuthEmailSender(), "http://localhost:8081") }
 
+        val health = client.get("/health")
+        assertEquals(HttpStatusCode.OK, health.status)
+        val healthJson = json.parseToJsonElement(health.bodyAsText()).jsonObject
+        assertEquals("UP", healthJson["status"]!!.jsonPrimitive.content)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/tasks").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/tasks/search").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/auth/me").status)
     }
 
@@ -67,11 +72,50 @@ class TaskRoutesTest {
         val taskId = json.parseToJsonElement(createdTask.bodyAsText())
             .jsonObject["id"]!!.jsonPrimitive.content
 
+        val secondTask = client.post("/tasks") {
+            bearerAuth(firstAccess)
+            contentType(ContentType.Application.Json)
+            setBody("""{"title":"planning checklist","status":"IN_PROGRESS"}""")
+        }
+        assertEquals(HttpStatusCode.Created, secondTask.status)
+
+        val firstPage = client.get("/tasks/search?page=0&size=1") { bearerAuth(firstAccess) }
+        assertEquals(HttpStatusCode.OK, firstPage.status)
+        val firstPageJson = json.parseToJsonElement(firstPage.bodyAsText()).jsonObject
+        assertEquals("2", firstPageJson["totalElements"]!!.jsonPrimitive.content)
+        assertEquals("2", firstPageJson["totalPages"]!!.jsonPrimitive.content)
+        assertEquals(1, firstPageJson["items"]!!.let { it as kotlinx.serialization.json.JsonArray }.size)
+
+        val secondPage = client.get("/tasks/search?page=1&size=1") { bearerAuth(firstAccess) }
+        assertTrue(secondPage.bodyAsText().contains("planning checklist"))
+
+        val filteredPage = client.get("/tasks/search?q=private&status=TODO") { bearerAuth(firstAccess) }
+        assertEquals(HttpStatusCode.OK, filteredPage.status)
+        assertTrue(filteredPage.bodyAsText().contains("private task"))
+        val filteredPageJson = json.parseToJsonElement(filteredPage.bodyAsText()).jsonObject
+        assertEquals("1", filteredPageJson["totalElements"]!!.jsonPrimitive.content)
+
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get("/tasks/search?size=101") { bearerAuth(firstAccess) }.status
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get("/tasks/search?page=not-a-number") { bearerAuth(firstAccess) }.status
+        )
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            client.get("/tasks/search?status=UNKNOWN") { bearerAuth(firstAccess) }.status
+        )
+
         register("second@example.com")
         val second = verifyEmail(emailSender.verificationTokens.getValue("second@example.com"))
         val secondAccess = second["accessToken"]!!.jsonPrimitive.content
         val secondTasks = client.get("/tasks") { bearerAuth(secondAccess) }
         assertEquals("[]", secondTasks.bodyAsText().trim())
+        val secondSearch = client.get("/tasks/search") { bearerAuth(secondAccess) }
+        val secondSearchJson = json.parseToJsonElement(secondSearch.bodyAsText()).jsonObject
+        assertEquals("0", secondSearchJson["totalElements"]!!.jsonPrimitive.content)
         val otherUsersTask = client.get("/tasks/$taskId") { bearerAuth(secondAccess) }
         assertEquals(HttpStatusCode.NotFound, otherUsersTask.status)
 

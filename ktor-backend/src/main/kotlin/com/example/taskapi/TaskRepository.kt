@@ -10,6 +10,17 @@ class TaskRepository {
 
     fun getById(id: Long, ownerId: Long): Task? = tasks[id]?.takeIf { it.ownerId == ownerId }
 
+    fun search(ownerId: Long, query: String?, status: TaskStatus?): List<Task> = tasks.values
+        .asSequence()
+        .filter { it.ownerId == ownerId }
+        .filter { task -> status == null || task.status == status }
+        .filter { task ->
+            query == null || task.title.contains(query, ignoreCase = true) ||
+                task.description.contains(query, ignoreCase = true)
+        }
+        .sortedBy { it.id }
+        .toList()
+
     fun create(taskRequest: TaskRequest, ownerId: Long): Task {
         val id = nextId.getAndIncrement()
         val task = Task(
